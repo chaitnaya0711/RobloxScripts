@@ -1,0 +1,275 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Constants
+local BUTTON_SIZE = UDim2.new(0, 100, 0, 40)
+local GUI_SIZE = UDim2.new(0, 300, 0, 200)
+local TWEEN_TIME = 0.5
+
+-- Create the main ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MeasurementToolGui"
+screenGui.Parent = playerGui
+
+-- Create the toggle button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = BUTTON_SIZE
+toggleButton.Position = UDim2.new(0.5, -50, 0.95, -20)
+toggleButton.AnchorPoint = Vector2.new(0.5, 1)
+toggleButton.Text = "Open GUI"
+toggleButton.Parent = screenGui
+
+-- Create the main GUI frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = GUI_SIZE
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+
+-- Create a UICorner for the main frame
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 20)
+corner.Parent = mainFrame
+
+-- Create buttons for the GUI
+local addCheckpointButton = Instance.new("TextButton")
+addCheckpointButton.Name = "AddCheckpoint"
+addCheckpointButton.Size = UDim2.new(0.3, 0, 0, 30)
+addCheckpointButton.Position = UDim2.new(0.05, 0, 0.1, 0)
+addCheckpointButton.Text = "Add Checkpoint"
+addCheckpointButton.Parent = mainFrame
+
+local removeCheckpointButton = Instance.new("TextButton")
+removeCheckpointButton.Name = "RemoveCheckpoint"
+removeCheckpointButton.Size = UDim2.new(0.3, 0, 0, 30)
+removeCheckpointButton.Position = UDim2.new(0.35, 0, 0.1, 0)
+removeCheckpointButton.Text = "Remove Checkpoint"
+removeCheckpointButton.Parent = mainFrame
+
+local findResultsButton = Instance.new("TextButton")
+findResultsButton.Name = "FindResults"
+findResultsButton.Size = UDim2.new(0.3, 0, 0, 30)
+findResultsButton.Position = UDim2.new(0.65, 0, 0.1, 0)
+findResultsButton.Text = "Find Results"
+findResultsButton.Parent = mainFrame
+
+-- Create labels for results and map size
+local resultsLabel = Instance.new("TextLabel")
+resultsLabel.Name = "ResultsLabel"
+resultsLabel.Size = UDim2.new(0.9, 0, 0, 30)
+resultsLabel.Position = UDim2.new(0.05, 0, 0.4, 0)
+resultsLabel.Text = "Results: N/A"
+resultsLabel.Parent = mainFrame
+
+local mapSizeLabel = Instance.new("TextLabel")
+mapSizeLabel.Name = "MapSizeLabel"
+mapSizeLabel.Size = UDim2.new(0.9, 0, 0, 30)
+mapSizeLabel.Position = UDim2.new(0.05, 0, 0.6, 0)
+mapSizeLabel.Text = "Map Size: Calculating..."
+mapSizeLabel.Parent = mainFrame
+
+-- Create a blur effect
+local blurEffect = Instance.new("BlurEffect")
+blurEffect.Size = 0
+blurEffect.Parent = game.Lighting
+
+-- Variables for measurement
+local checkpoints = {}
+local lines = {}
+local selectedPlayers = {}
+
+-- Function to toggle GUI visibility with animation
+local function toggleGui()
+    local targetPosition
+    local buttonText
+    local tweenInfo = TweenInfo.new(TWEEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    
+    if mainFrame.Visible then
+        targetPosition = UDim2.new(0.5, 0, 1.5, 0)
+        buttonText = "Open GUI"
+        TweenService:Create(blurEffect, tweenInfo, {Size = 0}):Play()
+    else
+        targetPosition = UDim2.new(0.5, 0, 0.5, 0)
+        buttonText = "Close GUI"
+        mainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
+        mainFrame.Visible = true
+        TweenService:Create(blurEffect, tweenInfo, {Size = 20}):Play()
+    end
+    
+    local frameTween = TweenService:Create(mainFrame, tweenInfo, {Position = targetPosition})
+    frameTween:Play()
+    
+    toggleButton.Text = buttonText
+    
+    if mainFrame.Visible then
+        frameTween.Completed:Connect(function()
+            if targetPosition.Y.Scale > 1 then
+                mainFrame.Visible = false
+            end
+        end)
+    end
+end
+
+-- Function to highlight a player
+local function highlightPlayer(player)
+    local character = player.Character
+    if character then
+        local highlight = Instance.new("Highlight")
+        highlight.FillColor = Color3.new(1, 0, 0)
+        highlight.OutlineColor = Color3.new(1, 1, 0)
+        highlight.Parent = character
+        return highlight
+    end
+    return nil
+end
+
+-- Function to measure distance between two players
+local function measurePlayerDistance()
+    if #selectedPlayers == 2 then
+        local player1, player2 = selectedPlayers[1], selectedPlayers[2]
+        local char1, char2 = player1.Character, player2.Character
+        if char1 and char2 then
+            local root1, root2 = char1:FindFirstChild("HumanoidRootPart"), char2:FindFirstChild("HumanoidRootPart")
+            if root1 and root2 then
+                local distance = (root1.Position - root2.Position).Magnitude
+                resultsLabel.Text = string.format("Distance between %s and %s: %.2f studs", player1.Name, player2.Name, distance)
+                
+                -- Create a line on the ground
+                local line = Instance.new("Part")
+                line.Anchored = true
+                line.CanCollide = false
+                line.Size = Vector3.new(0.2, 0.2, distance)
+                local midPoint = (root1.Position + root2.Position) / 2
+                midPoint = Vector3.new(midPoint.X, 0, midPoint.Z)  -- Project to the ground
+                line.CFrame = CFrame.new(midPoint, Vector3.new(root2.Position.X, 0, root2.Position.Z)) * CFrame.Angles(0, math.pi/2, 0)
+                line.Parent = workspace
+                
+                table.insert(lines, line)
+            else
+                resultsLabel.Text = "Error: Cannot find HumanoidRootPart for both players"
+            end
+        else
+            resultsLabel.Text = "Error: Cannot find character for both players"
+        end
+    else
+        resultsLabel.Text = "Please select two players to measure distance"
+    end
+end
+
+-- Function to handle player selection
+local function onPlayerClicked(player)
+    if #selectedPlayers < 2 then
+        table.insert(selectedPlayers, player)
+        local highlight = highlightPlayer(player)
+        if highlight then
+            table.insert(checkpoints, highlight)
+        end
+        if #selectedPlayers == 2 then
+            measurePlayerDistance()
+        end
+    else
+        resultsLabel.Text = "Already selected two players. Click 'Remove Checkpoint' to reset."
+    end
+end
+
+-- Function to remove the last checkpoint
+local function removeCheckpoint()
+    if #selectedPlayers > 0 then
+        local player = table.remove(selectedPlayers)
+        if player.Character then
+            for _, highlight in ipairs(player.Character:GetChildren()) do
+                if highlight:IsA("Highlight") then
+                    highlight:Destroy()
+                    break
+                end
+            end
+        end
+    end
+    
+    if #lines > 0 then
+        local line = table.remove(lines)
+        line:Destroy()
+    end
+    
+    if #selectedPlayers == 0 then
+        resultsLabel.Text = "Results: N/A"
+    end
+end
+
+-- Function to calculate map size
+local function calculateMapSize()
+    local minX, minY, minZ = math.huge, math.huge, math.huge
+    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+    
+    for _, part in ipairs(workspace:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local pos = part.Position
+            local size = part.Size
+            minX = math.min(minX, pos.X - size.X/2)
+            minY = math.min(minY, pos.Y - size.Y/2)
+            minZ = math.min(minZ, pos.Z - size.Z/2)
+            maxX = math.max(maxX, pos.X + size.X/2)
+            maxY = math.max(maxY, pos.Y + size.Y/2)
+            maxZ = math.max(maxZ, pos.Z + size.Z/2)
+        end
+    end
+    
+    local sizeX = maxX - minX
+    local sizeY = maxY - minY
+    local sizeZ = maxZ - minZ
+    
+    return Vector3.new(sizeX, sizeY, sizeZ)
+end
+
+-- Update map size periodically
+local function updateMapSize()
+    local mapSize = calculateMapSize()
+    mapSizeLabel.Text = string.format("Map Size: %.2f x %.2f x %.2f studs", mapSize.X, mapSize.Y, mapSize.Z)
+end
+
+-- Connect button events
+toggleButton.MouseButton1Click:Connect(toggleGui)
+removeCheckpointButton.MouseButton1Click:Connect(removeCheckpoint)
+findResultsButton.MouseButton1Click:Connect(measurePlayerDistance)
+
+-- Handle player clicks
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local target = Players:GetPlayerFromCharacter(game.Workspace:FindFirstChild(mouse.Target.Parent.Name))
+        if target then
+            onPlayerClicked(target)
+        end
+    end
+end)
+
+-- Start updating map size
+spawn(function()
+    while true do
+        updateMapSize()
+        wait(5) -- Update every 5 seconds to avoid lag
+    end
+end)
+
+-- Clean up function
+local function cleanUp()
+    for _, highlight in ipairs(checkpoints) do
+        highlight:Destroy()
+    end
+    for _, line in ipairs(lines) do
+        line:Destroy()
+    end
+    screenGui:Destroy()
+    blurEffect:Destroy()
+end
+
+-- Connect clean up function
+player.CharacterRemoving:Connect(cleanUp)
