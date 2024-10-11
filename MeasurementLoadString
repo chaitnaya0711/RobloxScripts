@@ -1,4 +1,4 @@
-local url = "https://raw.githubusercontent.com/chaitnaya0711/RobloxScripts/main/SpeedemoterRUT"
+local url = "https://raw.githubusercontent.com/chaitnaya0711/RobloxScripts/measurement"
 local success, scriptContent = pcall(function()
     return game:HttpGet(url)
 end)
