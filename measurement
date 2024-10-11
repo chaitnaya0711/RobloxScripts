@@ -1,275 +1,538 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Constants
-local BUTTON_SIZE = UDim2.new(0, 100, 0, 40)
-local GUI_SIZE = UDim2.new(0, 300, 0, 200)
-local TWEEN_TIME = 0.5
+-- Create RemoteEvents for server communication
+local UpdateMeasurementEvent = Instance.new("RemoteEvent")
+UpdateMeasurementEvent.Name = "UpdateMeasurement"
+UpdateMeasurementEvent.Parent = ReplicatedStorage
 
--- Create the main ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MeasurementToolGui"
-screenGui.Parent = playerGui
+local MeasurementGui = {}
 
--- Create the toggle button
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Size = BUTTON_SIZE
-toggleButton.Position = UDim2.new(0.5, -50, 0.95, -20)
-toggleButton.AnchorPoint = Vector2.new(0.5, 1)
-toggleButton.Text = "Open GUI"
-toggleButton.Parent = screenGui
+function MeasurementGui.new()
+    local self = setmetatable({}, {__index = MeasurementGui})
+    self:Init()
+    return self
+end
 
--- Create the main GUI frame
-local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Size = GUI_SIZE
-mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-mainFrame.BackgroundTransparency = 0.2
-mainFrame.Visible = false
-mainFrame.Parent = screenGui
+function MeasurementGui:Init()
+    self:CreateGui()
+    self:SetupVariables()
+    self:BindEvents()
+    self:SetupKeybinds()
+end
 
--- Create a UICorner for the main frame
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 20)
-corner.Parent = mainFrame
+function MeasurementGui:CreateGui()
+    self.screenGui = Instance.new("ScreenGui")
+    self.screenGui.Name = "EnhancedMeasurementGui"
+    self.screenGui.ResetOnSpawn = false
+    self.screenGui.Parent = playerGui
 
--- Create buttons for the GUI
-local addCheckpointButton = Instance.new("TextButton")
-addCheckpointButton.Name = "AddCheckpoint"
-addCheckpointButton.Size = UDim2.new(0.3, 0, 0, 30)
-addCheckpointButton.Position = UDim2.new(0.05, 0, 0.1, 0)
-addCheckpointButton.Text = "Add Checkpoint"
-addCheckpointButton.Parent = mainFrame
+    self.mainFrame = self:CreateFrame("MainFrame", UDim2.new(0, 350, 0, 250), UDim2.new(0.5, -175, 0.5, -125))
+    self.mainFrame.Parent = self.screenGui
 
-local removeCheckpointButton = Instance.new("TextButton")
-removeCheckpointButton.Name = "RemoveCheckpoint"
-removeCheckpointButton.Size = UDim2.new(0.3, 0, 0, 30)
-removeCheckpointButton.Position = UDim2.new(0.35, 0, 0.1, 0)
-removeCheckpointButton.Text = "Remove Checkpoint"
-removeCheckpointButton.Parent = mainFrame
+    self.titleLabel = self:CreateLabel("TitleLabel", "Enhanced Measurement Tool", 22, UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 0, 5))
+    self.titleLabel.Parent = self.mainFrame
 
-local findResultsButton = Instance.new("TextButton")
-findResultsButton.Name = "FindResults"
-findResultsButton.Size = UDim2.new(0.3, 0, 0, 30)
-findResultsButton.Position = UDim2.new(0.65, 0, 0.1, 0)
-findResultsButton.Text = "Find Results"
-findResultsButton.Parent = mainFrame
+    self.resultLabel = self:CreateLabel("ResultLabel", "Total Length: 0 studs", 16, UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 50))
+    self.resultLabel.Parent = self.mainFrame
 
--- Create labels for results and map size
-local resultsLabel = Instance.new("TextLabel")
-resultsLabel.Name = "ResultsLabel"
-resultsLabel.Size = UDim2.new(0.9, 0, 0, 30)
-resultsLabel.Position = UDim2.new(0.05, 0, 0.4, 0)
-resultsLabel.Text = "Results: N/A"
-resultsLabel.Parent = mainFrame
+    self:CreateButtons()
+    self:CreateSettings()
+    self:CreateCloseButton()
+    self:CreateOpenButton()
+end
 
-local mapSizeLabel = Instance.new("TextLabel")
-mapSizeLabel.Name = "MapSizeLabel"
-mapSizeLabel.Size = UDim2.new(0.9, 0, 0, 30)
-mapSizeLabel.Position = UDim2.new(0.05, 0, 0.6, 0)
-mapSizeLabel.Text = "Map Size: Calculating..."
-mapSizeLabel.Parent = mainFrame
+function MeasurementGui:CreateFrame(name, size, position)
+    local frame = Instance.new("Frame")
+    frame.Name = name
+    frame.Size = size
+    frame.Position = position
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    frame.ClipsDescendants = true
 
--- Create a blur effect
-local blurEffect = Instance.new("BlurEffect")
-blurEffect.Size = 0
-blurEffect.Parent = game.Lighting
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 10)
+    uiCorner.Parent = frame
 
--- Variables for measurement
-local checkpoints = {}
-local lines = {}
-local selectedPlayers = {}
+    local uiGradient = Instance.new("UIGradient")
+    uiGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 40)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 25))
+    }
+    uiGradient.Rotation = 45
+    uiGradient.Parent = frame
 
--- Function to toggle GUI visibility with animation
-local function toggleGui()
-    local targetPosition
-    local buttonText
-    local tweenInfo = TweenInfo.new(TWEEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    
-    if mainFrame.Visible then
-        targetPosition = UDim2.new(0.5, 0, 1.5, 0)
-        buttonText = "Open GUI"
-        TweenService:Create(blurEffect, tweenInfo, {Size = 0}):Play()
-    else
-        targetPosition = UDim2.new(0.5, 0, 0.5, 0)
-        buttonText = "Close GUI"
-        mainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
-        mainFrame.Visible = true
-        TweenService:Create(blurEffect, tweenInfo, {Size = 20}):Play()
-    end
-    
-    local frameTween = TweenService:Create(mainFrame, tweenInfo, {Position = targetPosition})
-    frameTween:Play()
-    
-    toggleButton.Text = buttonText
-    
-    if mainFrame.Visible then
-        frameTween.Completed:Connect(function()
-            if targetPosition.Y.Scale > 1 then
-                mainFrame.Visible = false
+    return frame
+end
+
+function MeasurementGui:CreateLabel(name, text, textSize, size, position)
+    local label = Instance.new("TextLabel")
+    label.Name = name
+    label.Size = size
+    label.Position = position
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = textSize
+    label.Text = text
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    return label
+end
+
+function MeasurementGui:CreateButton(name, text, position, color)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.new(0.22, 0, 0, 35)
+    button.Position = position
+    button.BackgroundColor3 = color
+    button.Font = Enum.Font.GothamSemibold
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.TextSize = 14
+    button.Text = text
+    button.Parent = self.mainFrame
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 6)
+    uiCorner.Parent = button
+
+    return button
+end
+
+function MeasurementGui:CreateButtons()
+    self.startButton = self:CreateButton("StartButton", "Start", UDim2.new(0.02, 0, 1, -80), Color3.fromRGB(0, 180, 0))
+    self.resetButton = self:CreateButton("ResetButton", "Reset", UDim2.new(0.26, 0, 1, -80), Color3.fromRGB(180, 0, 0))
+    self.checkpointButton = self:CreateButton("CheckpointButton", "Point", UDim2.new(0.50, 0, 1, -80), Color3.fromRGB(0, 120, 180))
+    self.undoButton = self:CreateButton("UndoButton", "Undo", UDim2.new(0.74, 0, 1, -80), Color3.fromRGB(180, 120, 0))
+    self.measureSizeButton = self:CreateButton("MeasureSizeButton", "Map Size", UDim2.new(0.02, 0, 1, -120), Color3.fromRGB(0, 255, 0))
+end
+
+function MeasurementGui:CreateSettings()
+    self.settingsFrame = self:CreateFrame("SettingsFrame", UDim2.new(0, 300, 0, 150), UDim2.new(0.5, -150, 0.5, -75))
+    self.settingsFrame.Visible = false
+    self.settingsFrame.Parent = self.screenGui
+
+    local settingsTitle = self:CreateLabel("SettingsTitle", "Settings", 20, UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 5))
+    settingsTitle.Parent = self.settingsFrame
+
+    self.lineColorPicker = self:CreateColorPicker("LineColorPicker", "Line Color", UDim2.new(0, 10, 0, 40))
+    self.lineColorPicker.Parent = self.settingsFrame
+
+    self.lineThicknessSlider = self:CreateSlider("LineThicknessSlider", "Line Thickness", UDim2.new(0, 10, 0, 80), 1, 10, 2)
+    self.lineThicknessSlider.Parent = self.settingsFrame
+
+    self.settingsButton = self:CreateButton("SettingsButton", "Settings", UDim2.new(0.26, 0, 1, -120), Color3.fromRGB(100, 100, 100))
+    self.settingsButton.Parent = self.mainFrame
+end
+
+function MeasurementGui:CreateColorPicker(name, text, position)
+    local frame = Instance.new("Frame")
+    frame.Name = name
+    frame.Size = UDim2.new(0.9, 0, 0, 30)
+    frame.Position = position
+    frame.BackgroundTransparency = 1
+
+    local label = self:CreateLabel(name.."Label", text, 14, UDim2.new(0.5, 0, 1, 0), UDim2.new(0, 0, 0, 0))
+    label.Parent = frame
+
+    local colorDisplay = Instance.new("Frame")
+    colorDisplay.Name = "ColorDisplay"
+    colorDisplay.Size = UDim2.new(0, 30, 0, 30)
+    colorDisplay.Position = UDim2.new(1, -30, 0, 0)
+    colorDisplay.BackgroundColor3 = Color3.new(0, 1, 1)
+    colorDisplay.Parent = frame
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 6)
+    uiCorner.Parent = colorDisplay
+
+    return frame
+end
+
+function MeasurementGui:CreateSlider(name, text, position, min, max, default)
+    local frame = Instance.new("Frame")
+    frame.Name = name
+    frame.Size = UDim2.new(0.9, 0, 0, 50)
+    frame.Position = position
+    frame.BackgroundTransparency = 1
+
+    local label = self:CreateLabel(name.."Label", text, 14, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 0))
+    label.Parent = frame
+
+    local sliderBar = Instance.new("Frame")
+    sliderBar.Name = "SliderBar"
+    sliderBar.Size = UDim2.new(1, 0, 0, 5)
+    sliderBar.Position = UDim2.new(0, 0, 1, -10)
+    sliderBar.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
+    sliderBar.Parent = frame
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 2)
+    uiCorner.Parent = sliderBar
+
+    local sliderButton = Instance.new("TextButton")
+    sliderButton.Name = "SliderButton"
+    sliderButton.Size = UDim2.new(0, 20, 0, 20)
+    sliderButton.Position = UDim2.new(0, -10, 0.5, -10)
+    sliderButton.BackgroundColor3 = Color3.new(1, 0, 0)
+    sliderButton.Parent = sliderBar
+
+    sliderButton.MouseButton1Down:Connect(function()
+        local dragging = true
+        sliderButton.Parent.MouseMove:Connect(function(x, y)
+            if dragging then
+                local relativePosition = x - sliderBar.AbsolutePosition.X
+                local percentage = math.clamp(relativePosition / sliderBar.AbsoluteSize.X, 0, 1)
+                local value = math.floor(min + percentage * (max - min))
+                sliderButton.Position = UDim2.new(percentage, -10, 0.5, -10)
+                -- You can trigger a change event here if needed
             end
         end)
-    end
+        UserInputService.InputEnded:Wait()
+        dragging = false
+    end)
+
+    return frame
 end
 
--- Function to highlight a player
-local function highlightPlayer(player)
-    local character = player.Character
-    if character then
-        local highlight = Instance.new("Highlight")
-        highlight.FillColor = Color3.new(1, 0, 0)
-        highlight.OutlineColor = Color3.new(1, 1, 0)
-        highlight.Parent = character
-        return highlight
-    end
-    return nil
+function MeasurementGui:CreateCloseButton()
+    self.closeButton = Instance.new("TextButton")
+    self.closeButton.Name = "CloseButton"
+    self.closeButton.Size = UDim2.new(0.05, 0, 0.05, 0)
+    self.closeButton.Position = UDim2.new(1, -30, 0, 10)
+    self.closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    self.closeButton.Font = Enum.Font.GothamSemibold
+    self.closeButton.TextColor3 = Color3.new(1, 1, 1)
+    self.closeButton.TextSize = 14
+    self.closeButton.Text = "X"
+    self.closeButton.Parent = self.mainFrame
+
+    self.closeButton.MouseButton1Click:Connect(function()
+        self:ToggleGui(false)
+    end)
 end
 
--- Function to measure distance between two players
-local function measurePlayerDistance()
-    if #selectedPlayers == 2 then
-        local player1, player2 = selectedPlayers[1], selectedPlayers[2]
-        local char1, char2 = player1.Character, player2.Character
-        if char1 and char2 then
-            local root1, root2 = char1:FindFirstChild("HumanoidRootPart"), char2:FindFirstChild("HumanoidRootPart")
-            if root1 and root2 then
-                local distance = (root1.Position - root2.Position).Magnitude
-                resultsLabel.Text = string.format("Distance between %s and %s: %.2f studs", player1.Name, player2.Name, distance)
-                
-                -- Create a line on the ground
-                local line = Instance.new("Part")
-                line.Anchored = true
-                line.CanCollide = false
-                line.Size = Vector3.new(0.2, 0.2, distance)
-                local midPoint = (root1.Position + root2.Position) / 2
-                midPoint = Vector3.new(midPoint.X, 0, midPoint.Z)  -- Project to the ground
-                line.CFrame = CFrame.new(midPoint, Vector3.new(root2.Position.X, 0, root2.Position.Z)) * CFrame.Angles(0, math.pi/2, 0)
-                line.Parent = workspace
-                
-                table.insert(lines, line)
-            else
-                resultsLabel.Text = "Error: Cannot find HumanoidRootPart for both players"
+function MeasurementGui:CreateOpenButton()
+    self.openButton = Instance.new("TextButton")
+    self.openButton.Name = "OpenButton"
+    self.openButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+    self.openButton.Position = UDim2.new(0.5, -50, 0.5, -50)
+    self.openButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    self.openButton.Font = Enum.Font.GothamSemibold
+    self.openButton.TextColor3 = Color3.new(1, 1, 1)
+    self.openButton.TextSize = 14
+    self.openButton.Text = "Open"
+    self.openButton.Parent = self.screenGui
+
+    self.openButton.MouseButton1Click:Connect(function()
+        self:ToggleGui(true)
+    end)
+end
+
+function MeasurementGui:SetupVariables()
+    self.lines = {}
+    self.points = {}
+    self.totalLength = 0
+end
+
+function MeasurementGui:BindEvents()
+    self.startButton.MouseButton1Click:Connect(function()
+        self:StartMeasurement()
+    end)
+
+    self.resetButton.MouseButton1Click:Connect(function()
+        self:ResetMeasurement()
+    end)
+
+    self.checkpointButton.MouseButton1Click:Connect(function()
+        self:AddCheckpoint()
+    end)
+
+    self.undoButton.MouseButton1Click:Connect(function()
+        self:UndoCheckpoint()
+    end)
+
+    self.measureSizeButton.MouseButton1Click:Connect(function()
+        self:MeasureMapSize()
+    end)
+
+    self.settingsButton.MouseButton1Click:Connect(function()
+        self:ToggleSettings()
+    end)
+end
+
+function MeasurementGui:SetupKeybinds()
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed then
+            if input.KeyCode == Enum.KeyCode.M then
+                self:ToggleGui(not self.mainFrame.Visible)
+            elseif input.KeyCode == Enum.KeyCode.S then
+                self:ToggleSettings()
             end
-        else
-            resultsLabel.Text = "Error: Cannot find character for both players"
         end
-    else
-        resultsLabel.Text = "Please select two players to measure distance"
+    end)
+end
+
+function MeasurementGui:ToggleGui(show)
+    local targetPosition = show and UDim2.new(0.5, -175, 0.5, -125) or UDim2.new(0.5, -175, 0.5, -250)
+
+    -- Tween for smooth opening and closing
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(self.mainFrame, tweenInfo, {Position = targetPosition})
+    tween:Play()
+
+    tween.Completed:Wait()  -- Wait for the tween to complete
+    self.mainFrame.Visible = show
+    self.openButton.Visible = not show  -- Toggle the visibility of the open button
+
+    if not show then
+        -- Clean up lines and points when GUI is closed
+        self:ResetMeasurement()
+        self.settingsFrame.Visible = false  -- Ensure settings are closed when the main GUI is closed
     end
 end
 
--- Function to handle player selection
-local function onPlayerClicked(player)
-    if #selectedPlayers < 2 then
-        table.insert(selectedPlayers, player)
-        local highlight = highlightPlayer(player)
-        if highlight then
-            table.insert(checkpoints, highlight)
+function MeasurementGui:ToggleSettings()
+    self.settingsFrame.Visible = not self.settingsFrame.Visible
+end
+
+function MeasurementGui:StartMeasurement()
+    self:ResetMeasurement()
+    self.points = {}
+    self.totalLength = 0
+    self.resultLabel.Text = "Total Length: 0 studs"
+end
+
+function MeasurementGui:AddCheckpoint()
+    local playerPosition = player.Character and player.Character:FindFirstChild("HumanoidRootPart").Position
+    if playerPosition then
+        table.insert(self.points, playerPosition)
+
+        if #self.points > 1 then
+            local line = Instance.new("Part")
+            line.Size = Vector3.new(0.1, 0.1, (self.points[#self.points - 1] - self.points[#self.points]).magnitude)
+            line.Anchored = true
+            line.CanCollide = false
+            line.BrickColor = BrickColor.new(self.lineColorPicker.ColorDisplay.BackgroundColor3)
+            line.Material = Enum.Material.Neon
+
+            local midpoint = (self.points[#self.points - 1] + self.points[#self.points]) / 2
+            line.Position = midpoint + Vector3.new(0, line.Size.Z / 2, 0)
+            line.Parent = workspace
+
+            table.insert(self.lines, line)
+
+            self.totalLength += line.Size.Z
+            self.resultLabel.Text = string.format("Total Length: %.2f studs", self.totalLength)
+            UpdateMeasurementEvent:FireAllClients(self.totalLength) -- Notify all clients of the new measurement
         end
-        if #selectedPlayers == 2 then
-            measurePlayerDistance()
-        end
-    else
-        resultsLabel.Text = "Already selected two players. Click 'Remove Checkpoint' to reset."
     end
 end
 
--- Function to remove the last checkpoint
-local function removeCheckpoint()
-    if #selectedPlayers > 0 then
-        local player = table.remove(selectedPlayers)
-        if player.Character then
-            for _, highlight in ipairs(player.Character:GetChildren()) do
-                if highlight:IsA("Highlight") then
-                    highlight:Destroy()
-                    break
-                end
-            end
+function MeasurementGui:UndoCheckpoint()
+    if #self.points > 0 then
+        table.remove(self.points)
+
+        if #self.lines > 0 then
+            local lastLine = table.remove(self.lines)
+            lastLine:Destroy()  -- Remove the last line from the workspace
         end
+
+        self.totalLength = 0
+        for i = 1, #self.lines do
+            self.totalLength += self.lines[i].Size.Z
+        end
+
+        self.resultLabel.Text = string.format("Total Length: %.2f studs", self.totalLength)
+        UpdateMeasurementEvent:FireAllClients(self.totalLength) -- Notify all clients of the updated measurement
+    end
+end
+
+function MeasurementGui:ResetMeasurement()
+    for _, line in pairs(self.lines) do
+        line:Destroy()  -- Remove all lines from the workspace
+    end
+    self.lines = {}
+    self.points = {}
+    self.totalLength = 0
+    self.resultLabel.Text = "Total Length: 0 studs"
+end
+
+function MeasurementGui:MeasureMapSize()
+    -- Implementation for measuring map size goes here
+end
+
+-- Initialize the Measurement GUI
+local measurementGui = MeasurementGui.new()
+function MeasurementGui:AddCheckpoint()
+    if self.measuring then
+        local mousePos = UserInputService:GetMouseLocation()
+        local worldPos = workspace.CurrentCamera:ViewportPointToRay(mousePos.X, mousePos.Y, 0).Origin
+        
+        table.insert(self.points, worldPos)
+        
+        if #self.points > 1 then
+            local newLine = self:Create2DLine(
+                workspace.CurrentCamera:WorldToViewportPoint(self.points[#self.points-1]),
+                workspace.CurrentCamera:WorldToViewportPoint(self.points[#self.points]),
+                self.lineColor
+            )
+            table.insert(self.lines, newLine)
+        end
+        
+        self:UpdateLength()
+    end
+end
+
+function MeasurementGui:UndoLastPoint()
+    if #self.points > 0 then
+        table.remove(self.points)
+        if #self.lines > 0 then
+            self.lines[#self.lines].line:Remove()
+            self.lines[#self.lines].text:Remove()
+            table.remove(self.lines)
+        end
+        self:UpdateLength()
+    end
+end
+
+function MeasurementGui:HandleInput(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and self.measuring then
+        self:AddCheckpoint()
+    end
+end
+
+function MeasurementGui:UpdateLength()
+    local totalLength = 0
+    for i = 2, #self.points do
+        totalLength = totalLength + (self.points[i] - self.points[i-1]).Magnitude
+    end
+    self.resultLabel.Text = string.format("Total Length: %.2f studs", totalLength)
+    UpdateMeasurementEvent:FireServer(totalLength)
+end
+
+function MeasurementGui:Create2DLine(startPos, endPos, color)
+    local line = Drawing.new("Line")
+    line.Visible = true
+    line.From = Vector2.new(startPos.X, startPos.Y)
+    line.To = Vector2.new(endPos.X, endPos.Y)
+    line.Color = color or self.lineColor
+    line.Thickness = self.lineThickness
+    
+    local midpoint = startPos:Lerp(endPos, 0.5)
+    local length = (endPos - startPos).Magnitude
+    
+    local text = Drawing.new("Text")
+    text.Visible = true
+    text.Position = Vector2.new(midpoint.X, midpoint.Y)
+    text.Color = Color3.new(1, 1, 1)
+    text.Size = 14
+    text.Center = true
+    text.Text = string.format("%.2f", length)
+    
+    return {line = line, text = text}
+end
+
+function MeasurementGui:UpdateLines()
+    for i, lineObj in ipairs(self.lines) do
+        local startPoint = workspace.CurrentCamera:WorldToViewportPoint(self.points[i])
+        local endPoint = workspace.CurrentCamera:WorldToViewportPoint(self.points[i+1])
+        
+        lineObj.line.From = Vector2.new(startPoint.X, startPoint.Y)
+        lineObj.line.To = Vector2.new(endPoint.X, endPoint.Y)
+        
+        local midpoint = startPoint:Lerp(endPoint, 0.5)
+        lineObj.text.Position = Vector2.new(midpoint.X, midpoint.Y)
+    end
+end
+
+function MeasurementGui:ToggleGui(show)
+    if show == nil then
+        show = not self.mainFrame.Visible
     end
     
-    if #lines > 0 then
-        local line = table.remove(lines)
-        line:Destroy()
-    end
+    local targetPosition = show and UDim2.new(0.5, -175, 0.5, -125) or UDim2.new(0.5, -175, 1, 50)
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(self.mainFrame, tweenInfo, {Position = targetPosition})
+    tween:Play()
     
-    if #selectedPlayers == 0 then
-        resultsLabel.Text = "Results: N/A"
-    end
+    self.openButton.Visible = not show
 end
 
--- Function to calculate map size
-local function calculateMapSize()
+function MeasurementGui:ToggleSettings()
+    self.settingsFrame.Visible = not self.settingsFrame.Visible
+end
+
+function MeasurementGui:MeasureMapSize()
     local minX, minY, minZ = math.huge, math.huge, math.huge
     local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
-    
+
     for _, part in ipairs(workspace:GetDescendants()) do
         if part:IsA("BasePart") then
-            local pos = part.Position
             local size = part.Size
-            minX = math.min(minX, pos.X - size.X/2)
-            minY = math.min(minY, pos.Y - size.Y/2)
-            minZ = math.min(minZ, pos.Z - size.Z/2)
-            maxX = math.max(maxX, pos.X + size.X/2)
-            maxY = math.max(maxY, pos.Y + size.Y/2)
-            maxZ = math.max(maxZ, pos.Z + size.Z/2)
+            local position = part.Position
+
+            minX = math.min(minX, position.X - size.X / 2)
+            maxX = math.max(maxX, position.X + size.X / 2)
+            minY = math.min(minY, position.Y - size.Y / 2)
+            maxY = math.max(maxY, position.Y + size.Y / 2)
+            minZ = math.min(minZ, position.Z - size.Z / 2)
+            maxZ = math.max(maxZ, position.Z + size.Z / 2)
         end
     end
-    
-    local sizeX = maxX - minX
-    local sizeY = maxY - minY
-    local sizeZ = maxZ - minZ
-    
-    return Vector3.new(sizeX, sizeY, sizeZ)
+
+    local mapSize = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
+    self:ShowMapSizeAlert(mapSize)
 end
 
--- Update map size periodically
-local function updateMapSize()
-    local mapSize = calculateMapSize()
-    mapSizeLabel.Text = string.format("Map Size: %.2f x %.2f x %.2f studs", mapSize.X, mapSize.Y, mapSize.Z)
-end
+function MeasurementGui:ShowMapSizeAlert(mapSize)
+    local alertFrame = self:CreateFrame("MapSizeAlert", UDim2.new(0, 250, 0, 120), UDim2.new(0.5, -125, 0.5, -60))
+    alertFrame.Parent = self.screenGui
 
--- Connect button events
-toggleButton.MouseButton1Click:Connect(toggleGui)
-removeCheckpointButton.MouseButton1Click:Connect(removeCheckpoint)
-findResultsButton.MouseButton1Click:Connect(measurePlayerDistance)
+    local alertLabel = self:CreateLabel("AlertLabel", "Map Size:", 16, UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 10))
+    alertLabel.Parent = alertFrame
 
--- Handle player clicks
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local target = Players:GetPlayerFromCharacter(game.Workspace:FindFirstChild(mouse.Target.Parent.Name))
-        if target then
-            onPlayerClicked(target)
+    local sizeLabel = self:CreateLabel("SizeLabel", string.format("%.2f x %.2f x %.2f", mapSize.X, mapSize.Y, mapSize.Z), 14, UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 40))
+    sizeLabel.Parent = alertFrame
+
+    local copyButton = Instance.new("TextButton")
+    copyButton.Name = "CopyButton"
+    copyButton.Size = UDim2.new(1, -20, 0, 30)
+    copyButton.Position = UDim2.new(0, 10, 1, -40)
+    copyButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    copyButton.Font = Enum.Font.Gotham
+    copyButton.TextColor3 = Color3.new(1, 1, 1)
+    copyButton.TextSize = 14
+    copyButton.Text = "Copy to Clipboard"
+    copyButton.Parent = alertFrame
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 5)
+    uiCorner.Parent = copyButton
+
+    copyButton.MouseButton1Click:Connect(function()
+        setclipboard(string.format("%.2f,%.2f,%.2f", mapSize.X, mapSize.Y, mapSize.Z))
+        sizeLabel.Text = "Copied to clipboard!"
+        task.wait(1.5)
+        alertFrame:Destroy()
+    end)
+
+    task.delay(5, function()
+        if alertFrame.Parent then
+            alertFrame:Destroy()
         end
-    end
-end)
-
--- Start updating map size
-spawn(function()
-    while true do
-        updateMapSize()
-        wait(5) -- Update every 5 seconds to avoid lag
-    end
-end)
-
--- Clean up function
-local function cleanUp()
-    for _, highlight in ipairs(checkpoints) do
-        highlight:Destroy()
-    end
-    for _, line in ipairs(lines) do
-        line:Destroy()
-    end
-    screenGui:Destroy()
-    blurEffect:Destroy()
+    end)
 end
 
--- Connect clean up function
-player.CharacterRemoving:Connect(cleanUp)
+-- Initialize the GUI
+local measurementGui = MeasurementGui.new()
+
+-- Optional: Add any additional features or customizations here
+
+return measurementGui
