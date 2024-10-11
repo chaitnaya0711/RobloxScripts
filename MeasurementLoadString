@@ -1,0 +1,37 @@
+local url = "https://raw.githubusercontent.com/chaitnaya0711/RobloxScripts/main/SpeedemoterRUT"
+local success, scriptContent = pcall(function()
+    return game:HttpGet(url)
+end)
+
+if success then
+    local output
+    local function captureOutput()
+        output = {}
+        local originalPrint = print
+
+        print = function(...)
+            local args = {...}
+            table.insert(output, table.concat(args, "\t"))
+            originalPrint(...)
+        end
+
+        -- Load and execute the script
+        local scriptSuccess, scriptError = pcall(loadstring(scriptContent))
+
+        if not scriptSuccess then
+            originalPrint("Error executing script: " .. tostring(scriptError))
+        end
+
+        -- Restore original print function
+        print = originalPrint
+
+        return table.concat(output, "\n")
+    end
+
+    -- Capture and copy the output to clipboard
+    local fullOutput = captureOutput()
+    setclipboard(fullOutput)
+    print("Output has been copied to clipboard!")
+else
+    warn("Failed to load script: " .. tostring(scriptContent))
+end
