@@ -1,3 +1,18 @@
+--[[
+    Part 1: GUI Creation and Initialization
+    This script sets up the main GUI elements, including buttons for adding/removing checkpoints,
+    switching units, copying map size, and opening the player list. It also initializes essential
+    services and utility functions.
+]]
+
+-- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local localPlayer = Players.LocalPlayer
+
 -- Utility function for unit conversion
 local function convertDistance(distance, unit)
     if unit == "meters" then
@@ -9,14 +24,12 @@ local function convertDistance(distance, unit)
     end
 end
 
--- Services
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
-
-local localPlayer = Players.LocalPlayer
+-- Tween Info for animations
+local tweenInfo = TweenInfo.new(
+    0.3, -- Time
+    Enum.EasingStyle.Quad,
+    Enum.EasingDirection.Out
+)
 
 -- Function to create an alert dialog
 local function createAlertDialog(screenGui, message)
@@ -145,7 +158,7 @@ local function createCheckpointGUI()
     distanceLabel.Position = UDim2.new(0.5, -100, 0, -40)
     distanceLabel.Text = "Distance: 0 studs"
     distanceLabel.TextScaled = true
-    distanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- Changed to white
+    distanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- White text
     distanceLabel.BackgroundTransparency = 1
     distanceLabel.Font = Enum.Font.GothamBold
     distanceLabel.Parent = mainFrame
@@ -223,283 +236,7 @@ local function createCheckpointGUI()
     -- Selected Players Table
     local selectedPlayers = {}
 
-    -- Function to highlight selected player in the game world
-    local function highlightPlayer(player)
-        local character = player.Character
-        if character then
-            for _, part in pairs(character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Material = Enum.Material.Neon
-                    part.BrickColor = BrickColor.new("Bright yellow")
-                end
-            end
-        end
-    end
-
-    -- Function to remove highlight from player
-    local function removeHighlightPlayer(player)
-        local character = player.Character
-        if character then
-            for _, part in pairs(character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Material = Enum.Material.Plastic
-                    part.BrickColor = BrickColor.new("Bright blue")
-                end
-            end
-        end
-    end
-
-    -- Function to handle player selection
-    local function selectPlayer(player, button)
-        if table.find(selectedPlayers, player) then
-            -- Deselect the player
-            for i, p in ipairs(selectedPlayers) do
-                if p == player then
-                    table.remove(selectedPlayers, i)
-                    button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                    removeHighlightPlayer(p)
-                    break
-                end
-            end
-        else
-            if #selectedPlayers < 2 then
-                table.insert(selectedPlayers, player)
-                button.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-                highlightPlayer(player)
-            end
-        end
-
-        -- If two players are selected, create/update the line
-        if #selectedPlayers == 2 then
-            measureDistanceBetweenPlayers(selectedPlayers[1], selectedPlayers[2])
-        elseif #selectedPlayers < 2 and playerLine then
-            -- Remove existing line if less than two players are selected
-            if playerLine then
-                playerLine:Destroy()
-                playerLine = nil
-            end
-            if playerDistanceLabel then
-                playerDistanceLabel:Destroy()
-                playerDistanceLabel = nil
-            end
-        end
-    end
-
-    -- Function to populate the player list
-    local function populatePlayerList()
-        -- Clear existing buttons
-        for _, child in ipairs(scrollingFrame:GetChildren()) do
-            if child:IsA("TextButton") then
-                child:Destroy()
-            end
-        end
-
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= localPlayer then
-                local playerButton = Instance.new("TextButton")
-                playerButton.Size = UDim2.new(1, -10, 0, 40)
-                playerButton.Position = UDim2.new(0, 5, 0, 0)
-                playerButton.Text = player.Name
-                playerButton.TextScaled = true
-                playerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-                playerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                playerButton.Font = Enum.Font.GothamSemibold
-                playerButton.Parent = scrollingFrame
-
-                -- Rounded Corners for playerButton
-                local playerButtonCorner = Instance.new("UICorner")
-                playerButtonCorner.CornerRadius = UDim.new(0, 10)
-                playerButtonCorner.Parent = playerButton
-
-                -- Connect selection
-                playerButton.MouseButton1Click:Connect(function()
-                    selectPlayer(player, playerButton)
-                end)
-            end
-        end
-    end
-
-    populatePlayerList()
-
-    -- Update player list when players join or leave
-    Players.PlayerAdded:Connect(populatePlayerList)
-    Players.PlayerRemoving:Connect(populatePlayerList)
-
-    -- Function to toggle Player List Panel
-    local function togglePlayerList()
-        if playerListFrame.Visible then
-            -- Hide the Player List Panel with animation
-            local tweenHide = TweenService:Create(playerListFrame, TweenInfo.new(0.3), { Position = UDim2.new(1, -310, 0.5, -200) })
-            tweenHide:Play()
-            tweenHide.Completed:Connect(function()
-                playerListFrame.Visible = false
-            end)
-        else
-            -- Show the Player List Panel with animation
-            playerListFrame.Visible = true
-            local tweenShow = TweenService:Create(playerListFrame, TweenInfo.new(0.3), { Position = UDim2.new(1, -300, 0.5, -200) })
-            tweenShow:Play()
-        end
-    end
-
-    -- Function to measure distance between two selected players
-    local function measureDistanceBetweenPlayers(player1, player2)
-        if not player1.Character or not player2.Character then return end
-
-        local root1 = player1.Character:FindFirstChild("HumanoidRootPart")
-        local root2 = player2.Character:FindFirstChild("HumanoidRootPart")
-        if not root1 or not root2 then return end
-
-        -- Create the line if it doesn't exist
-        if not playerLine then
-            playerLine = Instance.new("Part")
-            playerLine.Size = Vector3.new(0.2, 0.2, 1)
-            playerLine.Anchored = true
-            playerLine.CanCollide = false
-            playerLine.Material = Enum.Material.Neon
-            playerLine.BrickColor = BrickColor.new("Bright red")
-            playerLine.Parent = workspace
-
-            -- Create a Billboard GUI to show the distance
-            local billboard = Instance.new("BillboardGui")
-            billboard.Size = UDim2.new(0, 100, 0, 50)
-            billboard.AlwaysOnTop = true
-            billboard.StudsOffset = Vector3.new(0, 2, 0)
-            billboard.Parent = playerLine
-
-            playerDistanceLabel = Instance.new("TextLabel")
-            playerDistanceLabel.Size = UDim2.new(1, 0, 1, 0)
-            playerDistanceLabel.Text = "Distance: 0 studs"
-            playerDistanceLabel.TextScaled = true
-            playerDistanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- White text
-            playerDistanceLabel.BackgroundTransparency = 1
-            playerDistanceLabel.Font = Enum.Font.GothamBold
-            playerDistanceLabel.Parent = billboard
-        end
-
-        -- Update the line position and orientation
-        local function updateLine()
-            if not player1.Character or not player2.Character then
-                if playerLine then
-                    playerLine:Destroy()
-                    playerLine = nil
-                end
-                if playerDistanceLabel then
-                    playerDistanceLabel:Destroy()
-                    playerDistanceLabel = nil
-                end
-                return
-            end
-
-            local pos1 = player1.Character.HumanoidRootPart.Position
-            local pos2 = player2.Character.HumanoidRootPart.Position
-            local midpoint = (pos1 + pos2) / 2
-            local distance = (pos2 - pos1).Magnitude
-
-            -- Update line size and orientation
-            playerLine.Size = Vector3.new(0.2, 0.2, distance)
-            local direction = (pos2 - pos1).Unit
-            local angle = math.atan2(direction.Z, direction.X)
-            playerLine.CFrame = CFrame.new(midpoint) * CFrame.Angles(0, angle, 0)
-
-            -- Update distance label
-            local convertedDistance, unitSuffix = convertDistance(distance, unit)
-            playerDistanceLabel.Text = "Distance: " .. string.format("%.2f", convertedDistance) .. unitSuffix
-        end
-
-        -- Initial update
-        updateLine()
-
-        -- Connect to RenderStepped for real-time updates
-        local connection
-        connection = RunService.RenderStepped:Connect(function()
-            if not player1.Character or not player2.Character then
-                if playerLine then
-                    playerLine:Destroy()
-                    playerLine = nil
-                end
-                if playerDistanceLabel then
-                    playerDistanceLabel:Destroy()
-                    playerDistanceLabel = nil
-                end
-                if connection then
-                    connection:Disconnect()
-                end
-                return
-            end
-
-            updateLine()
-        end)
-    end
-
-    -- Function to copy map size and show alert
-    local function copyMapSize(screenGui)
-        -- Assuming the map is bounded by Workspace's Baseplate or similar
-        -- Adjust as necessary based on your map's structure
-        local minPos = workspace:GetExtentsMinXYZ()
-        local maxPos = workspace:GetExtentsMaxXYZ()
-        local mapSize = maxPos - minPos
-
-        -- Since Roblox restricts copying to clipboard, display the size in an alert dialog
-        local message = "Map Size:\nX: " .. math.floor(mapSize.X) .. " studs\nY: " .. math.floor(mapSize.Y) .. " studs\nZ: " .. math.floor(mapSize.Z) .. " studs"
-        createAlertDialog(screenGui, message)
-    end
-
-    -- Function to update all lines and labels when unit changes
-    local function updateLinesAndLabels(unit)
-        -- Update checkpoint lines
-        for i, line in ipairs(checkpointLines) do
-            if i < #checkpointPositions then
-                local startPos = checkpointPositions[i].Position
-                local endPos = checkpointPositions[i + 1].Position
-                local distance = (endPos - startPos).Magnitude
-                local convertedDistance, unitSuffix = convertDistance(distance, unit)
-
-                -- Update line size and CFrame
-                line.Size = Vector3.new(0.2, 0.2, distance)
-                local midpoint = (startPos + endPos) / 2
-                local direction = (endPos - startPos).Unit
-                local angle = math.atan2(direction.Z, direction.X)
-                line.CFrame = CFrame.new(midpoint) * CFrame.Angles(0, angle, 0)
-
-                -- Update the billboard label
-                local billboard = line:FindFirstChildWhichIsA("BillboardGui")
-                if billboard then
-                    local label = billboard:FindFirstChildWhichIsA("TextLabel")
-                    if label then
-                        label.Text = string.format("%.2f", convertedDistance) .. unitSuffix
-                    end
-                end
-            end
-        end
-
-        -- Update player line and label
-        if playerLine and playerDistanceLabel and #selectedPlayers == 2 then
-            local player1 = selectedPlayers[1]
-            local player2 = selectedPlayers[2]
-            if player1.Character and player2.Character then
-                local root1 = player1.Character:FindFirstChild("HumanoidRootPart")
-                local root2 = player2.Character:FindFirstChild("HumanoidRootPart")
-                if root1 and root2 then
-                    local pos1 = root1.Position
-                    local pos2 = root2.Position
-                    local midpoint = (pos1 + pos2) / 2
-                    local distance = (pos2 - pos1).Magnitude
-
-                    -- Update line size and orientation
-                    playerLine.Size = Vector3.new(0.2, 0.2, distance)
-                    local direction = (pos2 - pos1).Unit
-                    local angle = math.atan2(direction.Z, direction.X)
-                    playerLine.CFrame = CFrame.new(midpoint) * CFrame.Angles(0, angle, 0)
-
-                    -- Update distance label
-                    local convertedDistance, unitSuffix = convertDistance(distance, unit)
-                    playerDistanceLabel.Text = "Distance: " .. string.format("%.2f", convertedDistance) .. unitSuffix
-                end
-            end
-        end
-    end
-
+    -- Return GUI elements for further manipulation
     return {
         mainFrame = mainFrame,
         distanceLabel = distanceLabel,
@@ -511,18 +248,43 @@ local function createCheckpointGUI()
         copyMapSizeButton = copyMapSizeButton,
         openPlayerListButton = openPlayerListButton,
         playerListFrame = playerListFrame,
-        populatePlayerList = populatePlayerList,
+        scrollingFrame = scrollingFrame,
+        listLayout = listLayout,
     }
 end
 
--- Variables to store checkpoint data, lines, and player targets
+return {
+    createCheckpointGUI = createCheckpointGUI,
+    convertDistance = convertDistance,
+}
+--[[
+    Part 2: Functionality and Event Handling
+    This script handles the core functionalities such as adding/removing checkpoints,
+    switching units, copying map size, and managing player selection for distance measurement.
+    It interacts with the GUI elements created in Part 1.
+]]
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local localPlayer = Players.LocalPlayer
+
+-- Require Part 1 (Assuming both parts are in the same LocalScript)
+-- If separated into different scripts or ModuleScripts, adjust accordingly.
+local Part1 = require(script.Parent.Part1) -- Adjust the path as necessary
+local guiElements = Part1.createCheckpointGUI()
+local convertDistance = Part1.convertDistance
+
+-- Variables to store checkpoint data and lines
 local checkpointPositions = {}
 local checkpointLines = {}
 local lastCheckpoint = nil
 local unit = "studs" -- Default unit
-local selectedPlayers = {} -- Store the two players selected
-local playerLine = nil -- Line connecting two players
-local playerDistanceLabel = nil -- Label showing distance between players
+
+-- Variables for player distance measurement
+local playerLine = nil
+local playerDistanceLabel = nil
+local connections = {}
 
 -- Function to create and place a new checkpoint at the player's current position
 local function createCheckpoint(player, distanceLabel, unit)
@@ -556,10 +318,6 @@ local function createCheckpoint(player, distanceLabel, unit)
         local direction = (newPosition - lastCheckpoint.Position).Unit
         local angle = math.atan2(direction.Z, direction.X)
         line.CFrame = CFrame.new(midpoint) * CFrame.Angles(0, angle, 0)
-
-        -- Rotate the line to align correctly between points
-        local heightDifference = newPosition.Y - lastCheckpoint.Position.Y
-        line.Size = Vector3.new(0.2, 0.2, (newPosition - lastCheckpoint.Position).Magnitude)
 
         -- Add a billboard GUI to show the length of the line
         local billboard = Instance.new("BillboardGui")
@@ -620,183 +378,7 @@ local function removeCheckpoint(distanceLabel)
     end
 end
 
--- Function to toggle GUI visibility with animation
-local function toggleGUIVisibility(guiElements)
-    if guiElements.mainFrame.Visible then
-        -- Hide GUI
-        local tweenHide = TweenService:Create(guiElements.mainFrame, TweenInfo.new(0.3), { Position = UDim2.new(0.5, -125, 0.5, -200), Size = UDim2.new(0, 250, 0, 0), BackgroundTransparency = 1 })
-        tweenHide:Play()
-        tweenHide.Completed:Connect(function()
-            guiElements.mainFrame.Visible = false
-            guiElements.blurEffect.Size = 0
-            guiElements.guiToggleButton.Text = "Open GUI"
-            resetPlayerSelections()
-        end)
-    else
-        -- Show GUI
-        guiElements.mainFrame.Visible = true
-        local tweenShow = TweenService:Create(guiElements.mainFrame, TweenInfo.new(0.3), { Position = UDim2.new(0.5, -125, 0.5, -150), Size = UDim2.new(0, 250, 0, 300), BackgroundTransparency = 0 })
-        tweenShow:Play()
-        tweenShow.Completed:Connect(function()
-            guiElements.blurEffect.Size = 10 -- Apply blur when GUI is open
-            guiElements.guiToggleButton.Text = "Close GUI"
-        end)
-    end
-end
-
--- Function to update all lines and labels when unit changes
-local function updateLinesAndLabels(unit)
-    -- Update checkpoint lines
-    for i, line in ipairs(checkpointLines) do
-        if i < #checkpointPositions then
-            local startPos = checkpointPositions[i].Position
-            local endPos = checkpointPositions[i + 1].Position
-            local distance = (endPos - startPos).Magnitude
-            local convertedDistance, unitSuffix = convertDistance(distance, unit)
-
-            -- Update line size and CFrame
-            line.Size = Vector3.new(0.2, 0.2, distance)
-            local midpoint = (startPos + endPos) / 2
-            local direction = (endPos - startPos).Unit
-            local angle = math.atan2(direction.Z, direction.X)
-            line.CFrame = CFrame.new(midpoint) * CFrame.Angles(0, angle, 0)
-
-            -- Update the billboard label
-            local billboard = line:FindFirstChildWhichIsA("BillboardGui")
-            if billboard then
-                local label = billboard:FindFirstChildWhichIsA("TextLabel")
-                if label then
-                    label.Text = string.format("%.2f", convertedDistance) .. unitSuffix
-                end
-            end
-        end
-    end
-
-    -- Update player line and label
-    if playerLine and playerDistanceLabel and #selectedPlayers == 2 then
-        local player1 = selectedPlayers[1]
-        local player2 = selectedPlayers[2]
-        if player1.Character and player2.Character then
-            local root1 = player1.Character:FindFirstChild("HumanoidRootPart")
-            local root2 = player2.Character:FindFirstChild("HumanoidRootPart")
-            if root1 and root2 then
-                local pos1 = root1.Position
-                local pos2 = root2.Position
-                local midpoint = (pos1 + pos2) / 2
-                local distance = (pos2 - pos1).Magnitude
-
-                -- Update line size and orientation
-                playerLine.Size = Vector3.new(0.2, 0.2, distance)
-                local direction = (pos2 - pos1).Unit
-                local angle = math.atan2(direction.Z, direction.X)
-                playerLine.CFrame = CFrame.new(midpoint) * CFrame.Angles(0, angle, 0)
-
-                -- Update distance label
-                local convertedDistance, unitSuffix = convertDistance(distance, unit)
-                playerDistanceLabel.Text = "Distance: " .. string.format("%.2f", convertedDistance) .. unitSuffix
-            end
-        end
-    end
-end
-
--- Function to reset player selections and highlights
-local function resetPlayerSelections()
-    -- Reset selected players
-    for _, player in ipairs(selectedPlayers) do
-        removeHighlightPlayer(player)
-    end
-    selectedPlayers = {}
-    -- Destroy existing player line and label
-    if playerLine then
-        playerLine:Destroy()
-        playerLine = nil
-    end
-    if playerDistanceLabel then
-        playerDistanceLabel:Destroy()
-        playerDistanceLabel = nil
-    end
-end
-
--- Function to initialize the script and GUI
-local function init()
-    local guiElements = createCheckpointGUI()
-
-    -- Connect the Add Checkpoint button
-    guiElements.addButton.MouseButton1Click:Connect(function()
-        createCheckpoint(localPlayer, guiElements.distanceLabel, unit)
-    end)
-
-    -- Connect the Remove Checkpoint button
-    guiElements.removeButton.MouseButton1Click:Connect(function()
-        removeCheckpoint(guiElements.distanceLabel)
-    end)
-
-    -- Connect the Unit Switch button
-    guiElements.unitButton.MouseButton1Click:Connect(function()
-        if unit == "studs" then
-            unit = "meters"
-            guiElements.unitButton.Image = "rbxassetid://INSERT_METERS_ICON_ID_HERE" -- Replace with your meters icon ID
-        elseif unit == "meters" then
-            unit = "feet"
-            guiElements.unitButton.Image = "rbxassetid://INSERT_FEET_ICON_ID_HERE" -- Replace with your feet icon ID
-        else
-            unit = "studs"
-            guiElements.unitButton.Image = "rbxassetid://INSERT_STUDS_ICON_ID_HERE" -- Replace with your studs icon ID
-        end
-
-        -- Update all lines and labels with the new unit
-        updateLinesAndLabels(unit)
-    end)
-
-    -- Connect the Copy Map Size button
-    guiElements.copyMapSizeButton.MouseButton1Click:Connect(function()
-        copyMapSize(guiElements.screenGui)
-    end)
-
-    -- Connect the Open Player List button
-    guiElements.openPlayerListButton.MouseButton1Click:Connect(function()
-        togglePlayerList()
-    end)
-
-    -- Connect the GUI Toggle button
-    guiElements.guiToggleButton.MouseButton1Click:Connect(function()
-        toggleGUIVisibility(guiElements)
-    end)
-
-    -- Setup player selection for distance measurement
-    setupPlayerSelection(guiElements.distanceLabel, unit)
-end
-
--- Run the script
-init()
-
--- Ensure lines are correctly connected to checkpoints during movement
-RunService.RenderStepped:Connect(function()
-    for i, line in ipairs(checkpointLines) do
-        if i < #checkpointPositions then
-            local startPos = checkpointPositions[i].Position
-            local endPos = checkpointPositions[i + 1].Position
-            local distance = (endPos - startPos).Magnitude
-            local convertedDistance, unitSuffix = convertDistance(distance, unit)
-
-            -- Update line size and CFrame
-            line.Size = Vector3.new(0.2, 0.2, distance)
-            local midpoint = (startPos + endPos) / 2
-            local direction = (endPos - startPos).Unit
-            local angle = math.atan2(direction.Z, direction.X)
-            line.CFrame = CFrame.new(midpoint) * CFrame.Angles(0, angle, 0)
-
-            -- Update the billboard label
-            local billboard = line:FindFirstChildWhichIsA("BillboardGui")
-            if billboard then
-                local label = billboard:FindFirstChildWhichIsA("TextLabel")
-                if label then
-                    label.Text = string.format("%.2f", convertedDistance) .. unitSuffix
-                end
-            end
-        end
-    end
-end)-- Function to measure the distance betwe
+-- Function to measure the distance between two players
 local function measureDistanceBetweenPlayers(player1, player2)
     if not player1.Character or not player2.Character then return end
 
@@ -825,13 +407,13 @@ local function measureDistanceBetweenPlayers(player1, player2)
         playerDistanceLabel.Size = UDim2.new(1, 0, 1, 0)
         playerDistanceLabel.Text = "Distance: 0 studs"
         playerDistanceLabel.TextScaled = true
-        playerDistanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- White text
+        playerDistanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         playerDistanceLabel.BackgroundTransparency = 1
         playerDistanceLabel.Font = Enum.Font.GothamBold
         playerDistanceLabel.Parent = billboard
     end
 
-    -- Update the line position and orientation
+    -- Function to update the line position and label
     local function updateLine()
         if not player1.Character or not player2.Character then
             if playerLine then
@@ -886,141 +468,74 @@ local function measureDistanceBetweenPlayers(player1, player2)
     end)
 end
 
--- Function to select players for distance measurement
-local function setupPlayerSelection(distanceLabel, unit)
-    local selection = {}
-    local playerLineConnection
-
-    -- Function to reset selection
-    local function resetSelection()
-        selection = {}
-        if playerLine then
-            playerLine:Destroy()
-            playerLine = nil
-            if playerDistanceLabel then
-                playerDistanceLabel:Destroy()
-                playerDistanceLabel = nil
-            end
+-- Function to populate and connect player list buttons
+local function populateAndConnectPlayerList(scrollingFrame)
+    -- Clear existing buttons
+    for _, child in ipairs(scrollingFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
         end
     end
 
-    -- Function to handle player clicks
-    local function onPlayerClicked(player)
-        if #selection < 2 then
-            table.insert(selection, player)
-            highlightPlayer(player)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer then
+            local playerButton = Instance.new("TextButton")
+            playerButton.Size = UDim2.new(1, -10, 0, 40)
+            playerButton.Position = UDim2.new(0, 5, 0, 0)
+            playerButton.Text = player.Name
+            playerButton.TextScaled = true
+            playerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            playerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            playerButton.Font = Enum.Font.GothamSemibold
+            playerButton.Parent = scrollingFrame
 
-            if #selection == 2 then
-                measureDistanceBetweenPlayers(selection[1], selection[2])
-            end
-        else
-            resetSelection()
-            table.insert(selection, player)
-            highlightPlayer(player)
-        end
-    end
+            -- Rounded Corners for playerButton
+            local playerButtonCorner = Instance.new("UICorner")
+            playerButtonCorner.CornerRadius = UDim.new(0, 10)
+            playerButtonCorner.Parent = playerButton
 
-    -- Highlight the selected player
-    local function highlightPlayer(player)
-        local character = player.Character
-        if character then
-            for _, part in pairs(character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Material = Enum.Material.Neon
-                    part.BrickColor = BrickColor.new("Bright yellow")
+            -- Connect selection
+            playerButton.MouseButton1Click:Connect(function()
+                -- Handle player selection
+                if #selectedPlayers < 2 then
+                    table.insert(selectedPlayers, player)
+                    playerButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+                    -- Highlight the player's character
+                    local character = player.Character
+                    if character then
+                        for _, part in pairs(character:GetChildren()) do
+                            if part:IsA("BasePart") then
+                                part.Material = Enum.Material.Neon
+                                part.BrickColor = BrickColor.new("Bright yellow")
+                            end
+                        end
+                    end
+                else
+                    -- Deselect if already selected
+                    for i, p in ipairs(selectedPlayers) do
+                        if p == player then
+                            table.remove(selectedPlayers, i)
+                            playerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                            -- Remove highlight
+                            local character = player.Character
+                            if character then
+                                for _, part in pairs(character:GetChildren()) do
+                                    if part:IsA("BasePart") then
+                                        part.Material = Enum.Material.Plastic
+                                        part.BrickColor = BrickColor.new("Bright blue")
+                                    end
+                                end
+                            end
+                            break
+                        end
+                    end
                 end
-            end
-        end
-    end
 
-    -- Remove highlight from player
-    local function removeHighlightFromPlayer(player)
-        local character = player.Character
-        if character then
-            for _, part in pairs(character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Material = Enum.Material.Plastic
-                    part.BrickColor = BrickColor.new("Bright blue")
-                end
-            end
-        end
-    end
-
-    -- Setup mouse click detection
-    local mouse = localPlayer:GetMouse()
-    mouse.Button1Down:Connect(function()
-        local target = mouse.Target
-        if target then
-            local clickedPlayer = Players:GetPlayerFromCharacter(target.Parent)
-            if clickedPlayer and clickedPlayer ~= localPlayer then
-                onPlayerClicked(clickedPlayer)
-            end
-        end
-    end)
-
-    -- Reset selection if player leaves
-    Players.PlayerRemoving:Connect(function(player)
-        if table.find(selection, player) then
-            removeHighlightFromPlayer(player)
-            resetSelection()
-        end
-    end)
-end
-
--- Function to handle player selection and distance measurement via GUI
-local function handlePlayerSelection()
-    local screenGui = localPlayer:WaitForChild("PlayerGui"):FindFirstChild("CheckpointCreatorGUI")
-    if not screenGui then return end
-
-    local playerListFrame = screenGui:FindFirstChildWhichIsA("Frame", true) -- Search recursively
-    if not playerListFrame then return end
-
-    local scrollingFrame = playerListFrame:FindFirstChildWhichIsA("ScrollingFrame")
-    if not scrollingFrame then return end
-
-    -- Selected Players Table
-    local selectedPlayers = {}
-    local playerLine = nil
-    local playerDistanceLabel = nil
-    local connections = {}
-
-    -- Function to highlight selected players in the game world
-    local function highlightPlayer(player)
-        local character = player.Character
-        if character then
-            for _, part in pairs(character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Material = Enum.Material.Neon
-                    part.BrickColor = BrickColor.new("Bright yellow")
-                end
-            end
-        end
-    end
-
-    -- Function to remove highlight from deselected players
-    local function removeHighlightPlayer(player)
-        local character = player.Character
-        if character then
-            for _, part in pairs(character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Material = Enum.Material.Plastic
-                    part.BrickColor = BrickColor.new("Bright blue")
-                end
-            end
-        end
-    end
-
-    -- Function to measure and display distance between two players
-    local function measureAndDisplayDistance()
-        if #selectedPlayers == 2 then
-            local player1 = selectedPlayers[1]
-            local player2 = selectedPlayers[2]
-
-            measureDistanceBetweenPlayers(player1, player2)
-
-            -- Ensure real-time updates
-            connections[#connections + 1] = RunService.RenderStepped:Connect(function()
-                if not player1.Character or not player2.Character then
+                -- If two players are selected, measure distance
+                if #selectedPlayers == 2 then
+                    measureDistanceBetweenPlayers(selectedPlayers[1], selectedPlayers[2])
+                elseif #selectedPlayers < 2 and playerLine then
+                    -- Remove existing line if less than two players are selected
                     if playerLine then
                         playerLine:Destroy()
                         playerLine = nil
@@ -1029,92 +544,166 @@ local function handlePlayerSelection()
                         playerDistanceLabel:Destroy()
                         playerDistanceLabel = nil
                     end
-                    return
                 end
-                updateLinesAndLabels(unit)
             end)
         end
     end
-
-    -- Function to handle player button clicks
-    local function onPlayerButtonClicked(player, button)
-        if table.find(selectedPlayers, player) then
-            -- Deselect the player
-            for i, p in ipairs(selectedPlayers) do
-                if p == player then
-                    table.remove(selectedPlayers, i)
-                    button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                    removeHighlightPlayer(p)
-                    break
-                end
-            end
-        else
-            if #selectedPlayers < 2 then
-                table.insert(selectedPlayers, player)
-                button.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-                highlightPlayer(player)
-            end
-        end
-
-        -- If two players are selected, measure distance
-        if #selectedPlayers == 2 then
-            measureAndDisplayDistance()
-        elseif #selectedPlayers < 2 and playerLine then
-            -- Remove existing line if less than two players are selected
-            if playerLine then
-                playerLine:Destroy()
-                playerLine = nil
-            end
-            if playerDistanceLabel then
-                playerDistanceLabel:Destroy()
-                playerDistanceLabel = nil
-            end
-            -- Disconnect all RenderStepped connections related to player distance
-            for _, conn in ipairs(connections) do
-                conn:Disconnect()
-            end
-            connections = {}
-        end
-    end
-
-    -- Function to populate and connect player list
-    local function populateAndConnectPlayerList()
-        -- Clear existing buttons
-        for _, child in ipairs(scrollingFrame:GetChildren()) do
-            if child:IsA("TextButton") then
-                child:Destroy()
-            end
-        end
-
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= localPlayer then
-                local playerButton = Instance.new("TextButton")
-                playerButton.Size = UDim2.new(1, -10, 0, 40)
-                playerButton.Position = UDim2.new(0, 5, 0, 0)
-                playerButton.Text = player.Name
-                playerButton.TextScaled = true
-                playerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-                playerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                playerButton.Font = Enum.Font.GothamSemibold
-                playerButton.Parent = scrollingFrame
-
-                -- Rounded Corners for playerButton
-                local playerButtonCorner = Instance.new("UICorner")
-                playerButtonCorner.CornerRadius = UDim.new(0, 10)
-                playerButtonCorner.Parent = playerButton
-
-                -- Connect selection
-                playerButton.MouseButton1Click:Connect(function()
-                    onPlayerButtonClicked(player, playerButton)
-                end)
-            end
-        end
-    end
-
-    populateAndConnectPlayerList()
-
-    -- Update player list when players join or leave
-    Players.PlayerAdded:Connect(populateAndConnectPlayerList)
-    Players.PlayerRemoving:Connect(populateAndConnectPlayerList)
 end
 
+-- Function to measure and display distance between two players
+local function measureAndDisplayDistance(selectedPlayers, unit)
+    if #selectedPlayers ~= 2 then return end
+    local player1, player2 = selectedPlayers[1], selectedPlayers[2]
+    measureDistanceBetweenPlayers(player1, player2)
+end
+
+-- Function to copy map size and show alert
+local function copyMapSize(screenGui)
+    -- Calculate the extents of the map
+    local minPos = workspace:GetExtentsMinXYZ()
+    local maxPos = workspace:GetExtentsMaxXYZ()
+    local mapSize = maxPos - minPos
+
+    -- Display the size in an alert dialog
+    local message = string.format("Map Size:\nX: %d studs\nY: %d studs\nZ: %d studs", mapSize.X, mapSize.Y, mapSize.Z)
+    createAlertDialog(screenGui, message)
+end
+
+-- Function to toggle Player List Panel
+local function togglePlayerList(guiElements)
+    if guiElements.playerListFrame.Visible then
+        -- Hide the Player List Panel with animation
+        local tweenHide = TweenService:Create(guiElements.playerListFrame, tweenInfo, { Position = UDim2.new(1, -310, 0.5, -200) })
+        tweenHide:Play()
+        tweenHide.Completed:Connect(function()
+            guiElements.playerListFrame.Visible = false
+        end)
+    else
+        -- Show the Player List Panel with animation
+        guiElements.playerListFrame.Visible = true
+        local tweenShow = TweenService:Create(guiElements.playerListFrame, tweenInfo, { Position = UDim2.new(1, -300, 0.5, -200) })
+        tweenShow:Play()
+    end
+end
+
+-- Function to toggle main GUI visibility
+local function toggleMainGUI(guiElements)
+    if guiElements.mainFrame.Visible then
+        -- Hide GUI with animation
+        local tweenHide = TweenService:Create(guiElements.mainFrame, tweenInfo, { Position = UDim2.new(0.5, -125, 0.5, -200), Size = UDim2.new(0, 250, 0, 0), BackgroundTransparency = 1 })
+        tweenHide:Play()
+        tweenHide.Completed:Connect(function()
+            guiElements.mainFrame.Visible = false
+            guiElements.blurEffect.Size = 0
+            guiElements.mainFrame.Position = UDim2.new(0.5, -125, 0.5, -150) -- Reset position
+        end)
+    else
+        -- Show GUI with animation
+        guiElements.mainFrame.Visible = true
+        local tweenShow = TweenService:Create(guiElements.mainFrame, tweenInfo, { Position = UDim2.new(0.5, -125, 0.5, -150), Size = UDim2.new(0, 250, 0, 300), BackgroundTransparency = 0 })
+        tweenShow:Play()
+        tweenShow.Completed:Connect(function()
+            guiElements.blurEffect.Size = 10 -- Apply blur when GUI is open
+        end)
+    end
+end
+
+-- Initialize the GUI and setup event connections
+local function init()
+    local guiElements = createCheckpointGUI()
+
+    -- Connect the Add Checkpoint button
+    guiElements.addButton.MouseButton1Click:Connect(function()
+        createCheckpoint(localPlayer, guiElements.distanceLabel, unit)
+    end)
+
+    -- Connect the Remove Checkpoint button
+    guiElements.removeButton.MouseButton1Click:Connect(function()
+        removeCheckpoint(guiElements.distanceLabel)
+    end)
+
+    -- Connect the Unit Switch button
+    guiElements.unitButton.MouseButton1Click:Connect(function()
+        if unit == "studs" then
+            unit = "meters"
+            guiElements.unitButton.Image = "rbxassetid://INSERT_METERS_ICON_ID_HERE" -- Replace with your meters icon ID
+        elseif unit == "meters" then
+            unit = "feet"
+            guiElements.unitButton.Image = "rbxassetid://INSERT_FEET_ICON_ID_HERE" -- Replace with your feet icon ID
+        else
+            unit = "studs"
+            guiElements.unitButton.Image = "rbxassetid://INSERT_STUDS_ICON_ID_HERE" -- Replace with your studs icon ID
+        end
+
+        -- Update all lines and labels with the new unit
+        updateLinesAndLabels(unit)
+    end)
+
+    -- Connect the Copy Map Size button
+    guiElements.copyMapSizeButton.MouseButton1Click:Connect(function()
+        copyMapSize(guiElements.screenGui)
+    end)
+
+    -- Connect the Open Player List button
+    guiElements.openPlayerListButton.MouseButton1Click:Connect(function()
+        togglePlayerList(guiElements)
+    end)
+
+    -- Connect the Toggle GUI (mainFrame) visibility
+    guiElements.mainFrame.Visible = false
+    guiElements.blurEffect.Size = 0
+
+    guiElements.openPlayerListButton.MouseButton1Click:Connect(function()
+        togglePlayerList(guiElements)
+    end)
+
+    -- Example: Toggle GUI using a key press (e.g., "G")
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.G then
+            toggleMainGUI(guiElements)
+        end
+    end)
+
+    -- Populate and connect player list initially
+    populateAndConnectPlayerList(guiElements.scrollingFrame)
+
+    -- Update player list when players join or leave
+    Players.PlayerAdded:Connect(function()
+        populateAndConnectPlayerList(guiElements.scrollingFrame)
+    end)
+    Players.PlayerRemoving:Connect(function()
+        populateAndConnectPlayerList(guiElements.scrollingFrame)
+    end)
+end
+
+-- Run the script
+init()
+
+-- Ensure lines are correctly connected to checkpoints during movement
+RunService.RenderStepped:Connect(function()
+    for i, line in ipairs(checkpointLines) do
+        if i < #checkpointPositions then
+            local startPos = checkpointPositions[i].Position
+            local endPos = checkpointPositions[i + 1].Position
+            local distance = (endPos - startPos).Magnitude
+            local convertedDistance, unitSuffix = convertDistance(distance, unit)
+
+            -- Update line size and CFrame
+            line.Size = Vector3.new(0.2, 0.2, distance)
+            local midpoint = (startPos + endPos) / 2
+            local direction = (endPos - startPos).Unit
+            local angle = math.atan2(direction.Z, direction.X)
+            line.CFrame = CFrame.new(midpoint) * CFrame.Angles(0, angle, 0)
+
+            -- Update the billboard label
+            local billboard = line:FindFirstChildWhichIsA("BillboardGui")
+            if billboard then
+                local label = billboard:FindFirstChildWhichIsA("TextLabel")
+                if label then
+                    label.Text = string.format("%.2f", convertedDistance) .. unitSuffix
+                end
+            end
+        end
+    end
+end)
