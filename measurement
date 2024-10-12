@@ -10,12 +10,12 @@ local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
 local mouse = localPlayer:GetMouse()
 
--- Tables to hold checkpoints, lines, and tracked players
+-- Tables to hold checkpoints, lines, and tracked entities
 local checkpoints = {}
 local lines = {}
-local trackedPlayers = {}
-local announcementInProgress = false -- To prevent multiple alerts from showing at the same time
-local MAX_TRACKED_PLAYERS = 3 -- Maximum number of players that can be tracked
+local trackedEntities = {}  -- Holds up to 2 entities (players or objects)
+local announcementInProgress = false  -- To prevent multiple alerts from showing at the same time
+local MAX_TRACKED_ENTITIES = 2  -- Maximum number of entities that can be tracked
 
 -- Create the ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
@@ -25,25 +25,43 @@ ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
 
 -- Function to create rounded corners
 local function makeRounded(instance, radius)
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, radius)
-    uiCorner.Parent = instance
+    local success, uiCorner = pcall(function()
+        uiCorner = Instance.new("UICorner")
+        uiCorner.CornerRadius = UDim.new(0, radius)
+        uiCorner.Parent = instance
+    end)
+    if not success then
+        warn("Failed to create UICorner for", instance.Name)
+    end
+end
+
+-- Function to format distance (meters to kilometers if >=1000)
+local function formatDistance(distance)
+    if distance >= 1000 then
+        local km = distance / 1000
+        return string.format("%.2f km", km)
+    else
+        return string.format("%.0f m", distance)
+    end
 end
 
 -- Function to get dynamic size based on screen size
 local function getDynamicSize()
     local camera = Workspace.CurrentCamera
-    if not camera then return UDim2.new(0, 600, 0, 800) end -- Fallback size
+    if not camera then 
+        warn("Camera not found!")
+        return UDim2.new(0, 600, 0, 800)  -- Fallback size
+    end
     local viewportSize = camera.ViewportSize
     local minDimension = math.min(viewportSize.X, viewportSize.Y)
-    return UDim2.new(0, minDimension * 0.6, 0, minDimension * 0.8)
+    return UDim2.new(0, math.floor(minDimension * 0.6), 0, math.floor(minDimension * 0.8))
 end
 
 -- Create the main frame with a sleek dark theme
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = getDynamicSize()
-MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0) -- Start off-screen
+MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)  -- Start off-screen
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
@@ -88,12 +106,12 @@ makeRounded(CloseButton, 10)
 -- Create the ScrollingFrame for buttons
 local ScrollFrame = Instance.new("ScrollingFrame")
 ScrollFrame.Name = "ScrollFrame"
-ScrollFrame.Size = UDim2.new(0.95, 0, 0.85, -60) -- Adjusted size to fit within MainFrame
+ScrollFrame.Size = UDim2.new(0.95, 0, 0.85, -60)  -- Adjusted size to fit within MainFrame
 ScrollFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 ScrollFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.ScrollBarThickness = 6
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 5, 0) -- Increased to allow scrolling
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 5, 0)  -- Increased to allow scrolling
 ScrollFrame.Parent = MainFrame
 
 -- UIListLayout for organizing buttons
@@ -142,11 +160,11 @@ makeRounded(ToggleButton, 10)
 
 -- Function to show announcements with better error handling
 local function showAnnouncement(message)
-    if announcementInProgress then return end -- Prevent multiple alerts
+    if announcementInProgress then return end  -- Prevent multiple alerts
     announcementInProgress = true
 
     local AnnouncementFrame = Instance.new("Frame")
-    AnnouncementFrame.Size = UDim2.new(0, 300, 0, 100) -- Increased height for multi-line
+    AnnouncementFrame.Size = UDim2.new(0, 300, 0, 100)  -- Increased height for multi-line
     AnnouncementFrame.Position = UDim2.new(0.5, 0, 0.1, 0)
     AnnouncementFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     AnnouncementFrame.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
@@ -180,60 +198,92 @@ end
 
 -- Function to create a line label showing distance
 local function createLineLabel(line, distance)
-    local BillboardGui = Instance.new("BillboardGui")
-    BillboardGui.Size = UDim2.new(0, 100, 0, 50)
-    BillboardGui.StudsOffset = Vector3.new(0, 3, 0)
-    BillboardGui.Adornee = line
-    BillboardGui.AlwaysOnTop = true
-    BillboardGui.Parent = line
+    local success, BillboardGui = pcall(function()
+        BillboardGui = Instance.new("BillboardGui")
+        BillboardGui.Size = UDim2.new(0, 100, 0, 50)
+        BillboardGui.StudsOffset = Vector3.new(0, 3, 0)
+        BillboardGui.Adornee = line
+        BillboardGui.AlwaysOnTop = true
+        BillboardGui.Parent = line
+    end)
+    if not success then
+        warn("Failed to create BillboardGui for line:", line.Name)
+        return
+    end
 
-    local DistanceLabel = Instance.new("TextLabel")
-    DistanceLabel.Size = UDim2.new(1, 0, 1, 0)
-    DistanceLabel.BackgroundTransparency = 1
-    DistanceLabel.Text = tostring(math.floor(distance)) .. " studs"
-    DistanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    DistanceLabel.Font = Enum.Font.Gotham
-    DistanceLabel.TextSize = 14
-    DistanceLabel.TextWrapped = true
-    DistanceLabel.Parent = BillboardGui
+    local successLabel, DistanceLabel = pcall(function()
+        DistanceLabel = Instance.new("TextLabel")
+        DistanceLabel.Size = UDim2.new(1, 0, 1, 0)
+        DistanceLabel.BackgroundTransparency = 1
+        DistanceLabel.Text = formatDistance(distance)
+        DistanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        DistanceLabel.Font = Enum.Font.Gotham
+        DistanceLabel.TextSize = 14
+        DistanceLabel.TextWrapped = true
+        DistanceLabel.Parent = BillboardGui
+    end)
+    if not successLabel then
+        warn("Failed to create DistanceLabel for line:", line.Name)
+    end
 end
 
 -- Function to draw a glowing line between two positions
 local function drawGlowingLine(startPos, endPos)
-    local line = Instance.new("Part")
-    line.Size = Vector3.new(0.2, 0.2, (startPos - endPos).Magnitude)
-    line.CFrame = CFrame.new(startPos, endPos) * CFrame.new(0, 0, -line.Size.Z / 2)
-    line.Anchored = true
-    line.CanCollide = false
-    line.Color = Color3.fromRGB(255, 255, 0) -- Yellow color
-    line.Material = Enum.Material.Neon -- Make the line glow
-    line.Name = "GlowingLine"
-    line.Parent = Workspace
+    local success, line = pcall(function()
+        line = Instance.new("Part")
+        line.Size = Vector3.new(0.2, 0.2, (startPos - endPos).Magnitude)
+        line.CFrame = CFrame.new(startPos, endPos) * CFrame.new(0, 0, -line.Size.Z / 2)
+        line.Anchored = true
+        line.CanCollide = false
+        line.Color = Color3.fromRGB(255, 255, 0)  -- Yellow color
+        line.Material = Enum.Material.Neon  -- Make the line glow
+        line.Name = "GlowingLine"
+        line.Parent = Workspace
+    end)
+    if not success then
+        warn("Failed to create GlowingLine between positions:", startPos, endPos)
+        return
+    end
 
     -- Add line length label
-    local distance = (startPos - endPos).Magnitude
-    createLineLabel(line, distance)
+    local successLabel, distance = pcall(function()
+        distance = (startPos - endPos).Magnitude
+    end)
+    if successLabel then
+        createLineLabel(line, distance)
+    else
+        warn("Failed to calculate distance between positions:", startPos, endPos)
+    end
 
     table.insert(lines, line)
 end
 
 -- Function to add a checkpoint
 local function addCheckpoint()
-    local character = localPlayer.Character
-    if not character or not character.PrimaryPart then
+    local success, char = pcall(function()
+        return localPlayer.Character or localPlayer.CharacterAdded:Wait()
+    end)
+    if not success or not char or not char.PrimaryPart then
         showAnnouncement("Character not loaded!")
         return
     end
 
-    local checkpoint = Instance.new("Part")
-    checkpoint.Size = Vector3.new(1, 1, 1)
-    checkpoint.CFrame = character.PrimaryPart.CFrame
-    checkpoint.Anchored = true
-    checkpoint.CanCollide = false
-    checkpoint.Color = Color3.fromRGB(52, 152, 219)
-    checkpoint.Material = Enum.Material.Neon
-    checkpoint.Name = "Checkpoint"
-    checkpoint.Parent = Workspace
+    local successCheckpoint, checkpoint = pcall(function()
+        checkpoint = Instance.new("Part")
+        checkpoint.Size = Vector3.new(1, 1, 1)
+        checkpoint.CFrame = char.PrimaryPart.CFrame
+        checkpoint.Anchored = true
+        checkpoint.CanCollide = false
+        checkpoint.Color = Color3.fromRGB(52, 152, 219)
+        checkpoint.Material = Enum.Material.Neon
+        checkpoint.Name = "Checkpoint"
+        checkpoint.Parent = Workspace
+    end)
+    if not successCheckpoint then
+        showAnnouncement("Failed to add checkpoint!")
+        return
+    end
+
     table.insert(checkpoints, checkpoint)
 
     -- Draw line from the last checkpoint to the new one
@@ -247,15 +297,29 @@ end
 
 -- Function to remove all checkpoints and lines
 local function removeAllCheckpoints()
-    for _, checkpoint in pairs(checkpoints) do
-        checkpoint:Destroy()
+    local success, err = pcall(function()
+        for _, checkpoint in pairs(checkpoints) do
+            if checkpoint and checkpoint.Parent then
+                checkpoint:Destroy()
+            end
+        end
+        checkpoints = {}
+    end)
+    if not success then
+        warn("Error removing checkpoints:", err)
     end
-    checkpoints = {}
 
-    for _, line in pairs(lines) do
-        line:Destroy()
+    local successLines, errLines = pcall(function()
+        for _, line in pairs(lines) do
+            if line and line.Parent then
+                line:Destroy()
+            end
+        end
+        lines = {}
+    end)
+    if not successLines then
+        warn("Error removing lines:", errLines)
     end
-    lines = {}
 
     showAnnouncement("All checkpoints removed!")
 end
@@ -265,21 +329,23 @@ local function calculateActualMapSize()
     local minX, minY, minZ = math.huge, math.huge, math.huge
     local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
 
-    for _, part in ipairs(Workspace:GetDescendants()) do
-        if part:IsA("BasePart") then
-            local pos = part.Position
-            local size = part.Size / 2 -- Accounts for half of the size of each part
+    local success, err = pcall(function()
+        for _, part in ipairs(Workspace:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local pos = part.Position
+                if pos.X < minX then minX = pos.X end
+                if pos.Y < minY then minY = pos.Y end
+                if pos.Z < minZ then minZ = pos.Z end
 
-            -- Update min values
-            minX = math.min(minX, pos.X - size.X)
-            minY = math.min(minY, pos.Y - size.Y)
-            minZ = math.min(minZ, pos.Z - size.Z)
-
-            -- Update max values
-            maxX = math.max(maxX, pos.X + size.X)
-            maxY = math.max(maxY, pos.Y + size.Y)
-            maxZ = math.max(maxZ, pos.Z + size.Z)
+                if pos.X > maxX then maxX = pos.X end
+                if pos.Y > maxY then maxY = pos.Y end
+                if pos.Z > maxZ then maxZ = pos.Z end
+            end
         end
+    end)
+    if not success then
+        showAnnouncement("Error calculating map size: " .. tostring(err))
+        return
     end
 
     -- Check if any parts were found
@@ -288,9 +354,11 @@ local function calculateActualMapSize()
         return
     end
 
-    -- Calculate map size
     local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
-    local sizeText = string.format("Map Size:\nX: %.2f studs\nY: %.2f studs\nZ: %.2f studs", size.X, size.Y, size.Z)
+    local sizeText = string.format("Map Size:\nX: %s\nY: %s\nZ: %s",
+        formatDistance(size.X),
+        formatDistance(size.Y),
+        formatDistance(size.Z))
     showAnnouncement(sizeText)
 end
 
@@ -303,9 +371,10 @@ local function calculateTotalDistance()
 
     local totalDistance = 0
     for i = 2, #checkpoints do
-        totalDistance = totalDistance + (checkpoints[i].Position - checkpoints[i - 1].Position).Magnitude
+        local dist = (checkpoints[i].Position - checkpoints[i - 1].Position).Magnitude
+        totalDistance = totalDistance + dist
     end
-    showAnnouncement("Total map distance: " .. math.floor(totalDistance) .. " studs")
+    showAnnouncement("Total map distance: " .. formatDistance(totalDistance))
 end
 
 -- Function to find the nearest player
@@ -329,7 +398,7 @@ local function findNearestPlayer()
     end
 
     if nearestPlayer then
-        showAnnouncement("Nearest Player: " .. nearestPlayer.Name .. " (" .. math.floor(shortestDistance) .. " studs)")
+        showAnnouncement("Nearest Player: " .. nearestPlayer.Name .. " (" .. formatDistance(shortestDistance) .. ")")
     else
         showAnnouncement("No other players found!")
     end
@@ -356,43 +425,62 @@ local function findFurthestPlayer()
     end
 
     if furthestPlayer then
-        showAnnouncement("Furthest Player: " .. furthestPlayer.Name .. " (" .. math.floor(longestDistance) .. " studs)")
+        showAnnouncement("Furthest Player: " .. furthestPlayer.Name .. " (" .. formatDistance(longestDistance) .. ")")
     else
         showAnnouncement("No other players found!")
     end
 end
 
-local function createDynamicLineBetweenPlayers(playerA, playerB, color)
-    local positionA, positionB
-    if playerA:IsA("Player") and playerA.Character and playerA.Character:FindFirstChild("HumanoidRootPart") then
-        positionA = playerA.Character.HumanoidRootPart.Position
-    elseif playerA:IsA("BasePart") then
-        positionA = playerA.Position
+-- Function to create a dynamic line between two entities with distance label
+local function createDynamicLineBetweenEntities(entityA, entityB, color)
+    -- Ensure both entities have a position
+    if not entityA or not entityB then return end
+
+    local posA, posB
+
+    if entityA:IsA("Player") then
+        if not entityA.Character or not entityA.Character:FindFirstChild("HumanoidRootPart") then return end
+        posA = entityA.Character.HumanoidRootPart.Position
+    elseif entityA:IsA("BasePart") then
+        posA = entityA.Position
     else
         return
     end
 
-    if playerB:IsA("Player") and playerB.Character and playerB.Character:FindFirstChild("HumanoidRootPart") then
-        positionB = playerB.Character.HumanoidRootPart.Position
-    elseif playerB:IsA("BasePart") then
-        positionB = playerB.Position
+    if entityB:IsA("Player") then
+        if not entityB.Character or not entityB.Character:FindFirstChild("HumanoidRootPart") then return end
+        posB = entityB.Character.HumanoidRootPart.Position
+    elseif entityB:IsA("BasePart") then
+        posB = entityB.Position
     else
         return
     end
 
-    local line = Instance.new("Part")
-    line.Size = Vector3.new(0.2, 0.2, (positionA - positionB).Magnitude)
-    line.CFrame = CFrame.new(positionA, positionB) * CFrame.new(0, 0, -line.Size.Z / 2)
-    line.Anchored = true
-    line.CanCollide = false
-    line.Color = color or Color3.fromRGB(255, 0, 0) -- Default red color
-    line.Material = Enum.Material.Neon -- Make the line glow
-    line.Name = "PlayerLine_" .. playerA.Name .. "_" .. playerB.Name
-    line.Parent = Workspace
+    local success, line = pcall(function()
+        line = Instance.new("Part")
+        line.Size = Vector3.new(0.2, 0.2, (posA - posB).Magnitude)
+        line.CFrame = CFrame.new(posA, posB) * CFrame.new(0, 0, -line.Size.Z / 2)
+        line.Anchored = true
+        line.CanCollide = false
+        line.Color = color or Color3.fromRGB(255, 0, 0)  -- Default red color
+        line.Material = Enum.Material.Neon  -- Make the line glow
+        line.Name = "EntityLine_" .. tostring(entityA) .. "_" .. tostring(entityB)
+        line.Parent = Workspace
+    end)
+    if not success then
+        warn("Failed to create line between entities:", entityA, entityB)
+        return nil
+    end
 
     -- Add distance label
-    local distance = (positionA - positionB).Magnitude
-    createLineLabel(line, distance)
+    local successLabel, distance = pcall(function()
+        distance = (posA - posB).Magnitude
+    end)
+    if successLabel then
+        createLineLabel(line, distance)
+    else
+        warn("Failed to calculate distance between entities:", entityA, entityB)
+    end
 
     -- Update the line every frame
     local connection
@@ -402,232 +490,280 @@ local function createDynamicLineBetweenPlayers(playerA, playerB, color)
             return
         end
 
-        local newStart, newEnd
-        if playerA:IsA("Player") and playerA.Character and playerA.Character:FindFirstChild("HumanoidRootPart") then
-            newStart = playerA.Character.HumanoidRootPart.Position
-        elseif playerA:IsA("BasePart") then
-            newStart = playerA.Position
-        else
-            line:Destroy()
-            connection:Disconnect()
-            return
+        -- Update positions
+        if entityA:IsA("Player") then
+            if not entityA.Character or not entityA.Character:FindFirstChild("HumanoidRootPart") then
+                line:Destroy()
+                connection:Disconnect()
+                return
+            end
+            posA = entityA.Character.HumanoidRootPart.Position
+        elseif entityA:IsA("BasePart") then
+            posA = entityA.Position
         end
 
-        if playerB:IsA("Player") and playerB.Character and playerB.Character:FindFirstChild("HumanoidRootPart") then
-            newEnd = playerB.Character.HumanoidRootPart.Position
-        elseif playerB:IsA("BasePart") then
-            newEnd = playerB.Position
-        else
-            line:Destroy()
-            connection:Disconnect()
-            return
+        if entityB:IsA("Player") then
+            if not entityB.Character or not entityB.Character:FindFirstChild("HumanoidRootPart") then
+                line:Destroy()
+                connection:Disconnect()
+                return
+            end
+            posB = entityB.Character.HumanoidRootPart.Position
+        elseif entityB:IsA("BasePart") then
+            posB = entityB.Position
         end
 
-        line.Size = Vector3.new(0.2, 0.2, (newStart - newEnd).Magnitude)
-        line.CFrame = CFrame.new(newStart, newEnd) * CFrame.new(0, 0, -line.Size.Z / 2)
+        -- Update line size and position
+        local newDistance = (posA - posB).Magnitude
+        line.Size = Vector3.new(0.2, 0.2, newDistance)
+        line.CFrame = CFrame.new(posA, posB) * CFrame.new(0, 0, -line.Size.Z / 2)
 
         -- Update distance label
-        local distanceLabel = line:FindFirstChildWhichIsA("BillboardGui"):FindFirstChildWhichIsA("TextLabel")
+        local distanceLabel = line:FindFirstChildWhichIsA("BillboardGui") and line:FindFirstChildWhichIsA("BillboardGui"):FindFirstChildWhichIsA("TextLabel")
         if distanceLabel then
-            distanceLabel.Text = tostring(math.floor((newStart - newEnd).Magnitude)) .. " studs"
+            distanceLabel.Text = formatDistance(newDistance)
         end
     end)
 
     return line
 end
 
--- Function to handle player tracking
-local function trackPlayer(player)
-    if not player or not (player:IsA("Player") or player:IsA("BasePart")) then
-        showAnnouncement("Invalid player or object to track!")
-        return
-    end
+-- Function to handle tracking entities
+local function trackEntity(entity)
+    if not entity then return end
 
-    -- Check how many players or objects are currently tracked
-    local currentTrackedCount = 0
-    for _ in pairs(trackedPlayers) do
-        currentTrackedCount = currentTrackedCount + 1
-    end
-
-    -- Limit to 2 tracked players or objects
-    if currentTrackedCount >= 2 then
-        showAnnouncement("You can only track 2 players or objects at once!")
-        return
-    end
-
-    if trackedPlayers[player] then
-        -- Player or object is already being tracked; untrack them
-        if trackedPlayers[player].Tracker then
-            trackedPlayers[player].Tracker:Destroy()
-        end
-
-        -- Remove all lines associated with this player or object
-        for otherPlayer, data in pairs(trackedPlayers) do
-            if otherPlayer ~= player then
-                for i, line in ipairs(data.Lines) do
-                    if line.Name == "PlayerLine_" .. player.Name .. "_" .. otherPlayer.Name or
-                       line.Name == "PlayerLine_" .. otherPlayer.Name .. "_" .. player.Name then
+    -- Check if entity is already tracked
+    for i, tracked in ipairs(trackedEntities) do
+        if tracked.Entity == entity then
+            -- Untrack the entity
+            if tracked.Tracker then
+                pcall(function()
+                    tracked.Tracker:Destroy()
+                end)
+            end
+            -- Remove lines associated with this entity
+            for _, line in ipairs(tracked.Lines) do
+                if line and line.Parent then
+                    pcall(function()
                         line:Destroy()
-                        table.remove(data.Lines, i)
-                        break
-                    end
+                    end)
                 end
             end
-        end
-
-        trackedPlayers[player] = nil
-        showAnnouncement("Stopped tracking " .. player.Name)
-    else
-        -- Check if maximum tracked players or objects reached
-        if #trackedPlayers >= MAX_TRACKED_PLAYERS or currentTrackedCount >= 2 then
-            showAnnouncement("Maximum of 2 players or objects can be tracked at once!")
+            table.remove(trackedEntities, i)
+            showAnnouncement("Stopped tracking " .. (entity:IsA("Player") and entity.Name or "object"))
             return
         end
+    end
 
-        -- Start tracking the player or object
-        if player:IsA("Player") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            -- Create a BillboardGui tracker
-            local tracker = Instance.new("BillboardGui")
-            tracker.Size = UDim2.new(0, 40, 0, 40)
-            tracker.StudsOffset = Vector3.new(0, 3, 0)
-            tracker.AlwaysOnTop = true
-            tracker.Name = "Tracker"
-            tracker.Parent = player.Character:FindFirstChild("HumanoidRootPart")
+    -- Check if maximum tracked entities reached
+    if #trackedEntities >= MAX_TRACKED_ENTITIES then
+        showAnnouncement("Maximum of " .. MAX_TRACKED_ENTITIES .. " entities can be tracked at once!")
+        return
+    end
 
-            local trackerCircle = Instance.new("Frame")
-            trackerCircle.Size = UDim2.new(1, 0, 1, 0)
-            trackerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-            trackerCircle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            trackerCircle.BackgroundTransparency = 0.3
-            trackerCircle.BorderSizePixel = 0
-            trackerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-            trackerCircle.Parent = tracker
+    -- Start tracking the entity
+    local success, tracker = pcall(function()
+        tracker = Instance.new("BillboardGui")
+        tracker.Size = UDim2.new(0, 20, 0, 20)
+        tracker.StudsOffset = Vector3.new(0, 3, 0)
+        tracker.AlwaysOnTop = true
+        tracker.Name = "Tracker"
 
-            trackedPlayers[player] = {Tracker = tracker, Lines = {}}
-
-            -- Create lines between this player and all other tracked players or objects
-            for otherPlayer, data in pairs(trackedPlayers) do
-                if otherPlayer ~= player then
-                    local line = createDynamicLineBetweenPlayers(player, otherPlayer, Color3.fromRGB(0, 255, 0))
-                    table.insert(trackedPlayers[player].Lines, line)
-                    table.insert(data.Lines, line) -- Also add to the other player's lines
-                end
+        if entity:IsA("Player") then
+            local humanoidRootPart = entity.Character:FindFirstChild("HumanoidRootPart")
+            if humanoidRootPart then
+                tracker.Parent = humanoidRootPart
+            else
+                error("HumanoidRootPart not found for player " .. entity.Name)
             end
-
-            showAnnouncement("Started tracking " .. player.Name)
-        elseif player:IsA("BasePart") then
-            -- Create a BillboardGui tracker for objects
-            local tracker = Instance.new("BillboardGui")
-            tracker.Size = UDim2.new(0, 40, 0, 40)
-            tracker.StudsOffset = Vector3.new(0, 3, 0)
-            tracker.AlwaysOnTop = true
-            tracker.Name = "Tracker"
-            tracker.Parent = player
-
-            local trackerCircle = Instance.new("Frame")
-            trackerCircle.Size = UDim2.new(1, 0, 1, 0)
-            trackerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-            trackerCircle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-            trackerCircle.BackgroundTransparency = 0.3
-            trackerCircle.BorderSizePixel = 0
-            trackerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-            trackerCircle.Parent = tracker
-
-            trackedPlayers[player] = {Tracker = tracker, Lines = {}}
-
-            -- Create lines between this object and all other tracked entities
-            for otherPlayer, data in pairs(trackedPlayers) do
-                if otherPlayer ~= player then
-                    local line = createDynamicLineBetweenPlayers(player, otherPlayer, Color3.fromRGB(0, 255, 0))
-                    table.insert(trackedPlayers[player].Lines, line)
-                    table.insert(data.Lines, line) -- Also add to the other player's lines
-                end
-            end
-
-            showAnnouncement("Started tracking " .. player.Name)
+        elseif entity:IsA("BasePart") then
+            tracker.Parent = entity
         else
-            showAnnouncement("Player or object not valid for tracking!")
+            error("Entity is neither a Player nor a BasePart")
+        end
+    end)
+    if not success then
+        showAnnouncement("Failed to create tracker for entity!")
+        warn("Error creating tracker:", tracker)
+        return
+    end
+
+    local successCircle, trackerCircle = pcall(function()
+        trackerCircle = Instance.new("Frame")
+        trackerCircle.Size = UDim2.new(1, 0, 1, 0)
+        trackerCircle.Position = UDim2.new(0, 0, 0, 0)
+        trackerCircle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        trackerCircle.BackgroundTransparency = 0.5
+        trackerCircle.BorderSizePixel = 0
+        trackerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+        trackerCircle.Parent = tracker
+    end)
+    if not successCircle then
+        showAnnouncement("Failed to create tracker circle!")
+        warn("Error creating tracker circle:", trackerCircle)
+    end
+
+    -- Initialize lines table for this entity
+    trackedEntities[#trackedEntities + 1] = {Entity = entity, Tracker = tracker, Lines = {}}
+
+    -- Create lines between this entity and all other tracked entities
+    for _, tracked in ipairs(trackedEntities) do
+        if tracked.Entity ~= entity then
+            local line = createDynamicLineBetweenEntities(entity, tracked.Entity, Color3.fromRGB(255, 0, 0))
+            if line then
+                table.insert(tracked.Lines, line)
+                tracked.Lines[#tracked.Lines + 1] = line
+            end
         end
     end
+
+    showAnnouncement("Started tracking " .. (entity:IsA("Player") and entity.Name or "object"))
 end
 
+-- Function to handle entity clicks (supports both mouse and touch inputs)
+local function handleEntityClick(target)
+    if not target then return end
 
--- Function to handle player clicks (supports both mouse and touch inputs)
-local function handlePlayerClick(target)
-    if target then
-        -- Find the player associated with the target
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                if target:IsDescendantOf(player.Character) then
-                    trackPlayer(player)
-                    break
-                end
+    -- Determine if the target is a player or an object
+    local clickedEntity = nil
+
+    -- Check if target is part of a player's character
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if target:IsDescendantOf(player.Character) then
+                clickedEntity = player
+                break
             end
         end
+    end
+
+    -- If not a player, check if it's a BasePart (object)
+    if not clickedEntity and target:IsA("BasePart") then
+        clickedEntity = target
+    end
+
+    -- Special case: allow tracking self by clicking on self's character
+    if not clickedEntity and target:IsDescendantOf(character) then
+        clickedEntity = localPlayer
+    end
+
+    if clickedEntity then
+        trackEntity(clickedEntity)
     end
 end
 
 -- Detect mouse clicks
 mouse.Button1Down:Connect(function()
-    local target = mouse.Target
-    handlePlayerClick(target)
+    local success, target = pcall(function()
+        return mouse.Target
+    end)
+    if success and target then
+        handleEntityClick(target)
+    else
+        warn("Failed to get mouse target.")
+    end
 end)
 
 -- Detect touch inputs
 UserInputService.TouchTap:Connect(function(touches, gameProcessed)
     if gameProcessed then return end
     for _, touch in ipairs(touches) do
-        local target = touch.Target
-        handlePlayerClick(target)
+        local success, target = pcall(function()
+            return touch.Target
+        end)
+        if success and target then
+            handleEntityClick(target)
+        else
+            warn("Failed to get touch target.")
+        end
     end
 end)
 
 -- Function to handle players leaving to remove trackers
 local function onPlayerRemoving(player)
-    if trackedPlayers[player] then
-        if trackedPlayers[player].Tracker then
-            trackedPlayers[player].Tracker:Destroy()
-        end
-        -- Remove all lines associated with this player
-        for otherPlayer, data in pairs(trackedPlayers) do
-            if otherPlayer ~= player then
-                for i, line in ipairs(data.Lines) do
-                    if line.Name == "PlayerLine_" .. player.Name .. "_" .. otherPlayer.Name or
-                       line.Name == "PlayerLine_" .. otherPlayer.Name .. "_" .. player.Name then
+    for i, tracked in ipairs(trackedEntities) do
+        if tracked.Entity == player then
+            if tracked.Tracker then
+                pcall(function()
+                    tracked.Tracker:Destroy()
+                end)
+            end
+            -- Remove all lines associated with this player
+            for _, line in ipairs(tracked.Lines) do
+                if line and line.Parent then
+                    pcall(function()
                         line:Destroy()
-                        table.remove(data.Lines, i)
-                        break
-                    end
+                    end)
                 end
             end
+            table.remove(trackedEntities, i)
+            showAnnouncement("Stopped tracking " .. player.Name)
+            break
         end
-        trackedPlayers[player] = nil
-        showAnnouncement("Stopped tracking " .. player.Name)
     end
 end
+
+-- Function to handle objects being removed
+local function onObjectRemoving(object)
+    for i, tracked in ipairs(trackedEntities) do
+        if tracked.Entity == object then
+            if tracked.Tracker then
+                pcall(function()
+                    tracked.Tracker:Destroy()
+                end)
+            end
+            -- Remove all lines associated with this object
+            for _, line in ipairs(tracked.Lines) do
+                if line and line.Parent then
+                    pcall(function()
+                        line:Destroy()
+                    end)
+                end
+            end
+            table.remove(trackedEntities, i)
+            showAnnouncement("Stopped tracking object")
+            break
+        end
+    end
+end
+
+-- Connect player removing events
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Connect object removing events
+Workspace.DescendantRemoving:Connect(function(descendant)
+    if descendant:IsA("BasePart") then
+        onObjectRemoving(descendant)
+    end
+end)
 
 -- Function to handle player respawning to reattach trackers
 local function onCharacterAdded(player, newCharacter)
-    if trackedPlayers[player] then
-        if newCharacter and newCharacter:FindFirstChild("HumanoidRootPart") then
-            -- Reattach the tracker to the new character
-            local tracker = trackedPlayers[player].Tracker
-            tracker.Parent = newCharacter:FindFirstChild("HumanoidRootPart")
+    for _, tracked in ipairs(trackedEntities) do
+        if tracked.Entity == player then
+            if newCharacter and newCharacter:FindFirstChild("HumanoidRootPart") then
+                -- Reattach the tracker to the new character
+                pcall(function()
+                    tracked.Tracker.Parent = newCharacter:FindFirstChild("HumanoidRootPart")
+                end)
 
-            -- Recreate lines between this player and all other tracked players
-            for otherPlayer, data in pairs(trackedPlayers) do
-                if otherPlayer ~= player then
-                    local line = createDynamicLineBetweenPlayers(player, otherPlayer, Color3.fromRGB(255, 0, 0))
-                    table.insert(trackedPlayers[player].Lines, line)
-                    table.insert(data.Lines, line) -- Also add to the other player's lines
+                -- Recreate lines between this player and all other tracked entities
+                for _, otherTracked in ipairs(trackedEntities) do
+                    if otherTracked.Entity ~= player then
+                        local line = createDynamicLineBetweenEntities(player, otherTracked.Entity, Color3.fromRGB(255, 0, 0))
+                        if line then
+                            table.insert(tracked.Lines, line)
+                            otherTracked.Lines[#otherTracked.Lines + 1] = line
+                        end
+                    end
                 end
             end
+            break
         end
     end
 end
 
--- Connect player removing and character added events
-Players.PlayerRemoving:Connect(onPlayerRemoving)
+-- Connect character added events
 Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function(char)
         onCharacterAdded(player, char)
@@ -649,12 +785,18 @@ local function toggleGUI()
     if guiVisible then
         MainFrame.Visible = true
         -- Animate the frame sliding in
-        MainFrame:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), "Out", "Sine", 0.5, true)
+        pcall(function()
+            MainFrame:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), "Out", "Sine", 0.5, true)
+        end)
     else
         -- Animate the frame sliding out
-        MainFrame:TweenPosition(UDim2.new(0.5, 0, 1.5, 0), "In", "Sine", 0.5, true)
+        pcall(function()
+            MainFrame:TweenPosition(UDim2.new(0.5, 0, 1.5, 0), "In", "Sine", 0.5, true)
+        end)
         wait(0.5)
-        MainFrame.Visible = false
+        pcall(function()
+            MainFrame.Visible = false
+        end)
     end
 end
 
@@ -663,37 +805,12 @@ CloseButton.MouseButton1Click:Connect(toggleGUI)
 
 -- Update the size dynamically when the screen size changes
 RunService.RenderStepped:Connect(function()
-    MainFrame.Size = getDynamicSize()
+    local success, newSize = pcall(getDynamicSize)
+    if success and newSize then
+        pcall(function()
+            MainFrame.Size = newSize
+        end)
+    else
+        warn("Failed to update GUI size.")
+    end
 end)
-local function calculateActualMapSize()
-local minX, minY, minZ = math.huge, math.huge, math.huge
-local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
-
-for _, part in ipairs(Workspace:GetDescendants()) do
-if part:IsA("BasePart") then
-local pos = part.Position
-local size = part.Size / 2 -- Accounts for half of the size of each part
-
--- Update min values
-minX = math.min(minX, pos.X - size.X)
-minY = math.min(minY, pos.Y - size.Y)
-minZ = math.min(minZ, pos.Z - size.Z)
-
--- Update max values
-maxX = math.max(maxX, pos.X + size.X)
-maxY = math.max(maxY, pos.Y + size.Y)
-maxZ = math.max(maxZ, pos.Z + size.Z)
-end
-end
-
--- Check if any parts were found
-if minX == math.huge then
-showAnnouncement("No BasePart objects found in the Workspace!")
-return
-end
-
--- Calculate map size
-local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
-local sizeText = string.format("Map Size:\nX: %.2f studs\nY: %.2f studs\nZ: %.2f studs", size.X, size.Y, size.Z)
-showAnnouncement(sizeText)
-end
