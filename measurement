@@ -362,15 +362,27 @@ local function findFurthestPlayer()
     end
 end
 
--- Function to create a dynamic line between two players with distance label
 local function createDynamicLineBetweenPlayers(playerA, playerB, color)
-    -- Ensure both players have characters and HumanoidRootPart
-    if not playerA.Character or not playerA.Character:FindFirstChild("HumanoidRootPart") then return end
-    if not playerB.Character or not playerB.Character:FindFirstChild("HumanoidRootPart") then return end
+    local positionA, positionB
+    if playerA:IsA("Player") and playerA.Character and playerA.Character:FindFirstChild("HumanoidRootPart") then
+        positionA = playerA.Character.HumanoidRootPart.Position
+    elseif playerA:IsA("BasePart") then
+        positionA = playerA.Position
+    else
+        return
+    end
+
+    if playerB:IsA("Player") and playerB.Character and playerB.Character:FindFirstChild("HumanoidRootPart") then
+        positionB = playerB.Character.HumanoidRootPart.Position
+    elseif playerB:IsA("BasePart") then
+        positionB = playerB.Position
+    else
+        return
+    end
 
     local line = Instance.new("Part")
-    line.Size = Vector3.new(0.2, 0.2, (playerA.Character.HumanoidRootPart.Position - playerB.Character.HumanoidRootPart.Position).Magnitude)
-    line.CFrame = CFrame.new(playerA.Character.HumanoidRootPart.Position, playerB.Character.HumanoidRootPart.Position) * CFrame.new(0, 0, -line.Size.Z / 2)
+    line.Size = Vector3.new(0.2, 0.2, (positionA - positionB).Magnitude)
+    line.CFrame = CFrame.new(positionA, positionB) * CFrame.new(0, 0, -line.Size.Z / 2)
     line.Anchored = true
     line.CanCollide = false
     line.Color = color or Color3.fromRGB(255, 0, 0) -- Default red color
@@ -379,7 +391,7 @@ local function createDynamicLineBetweenPlayers(playerA, playerB, color)
     line.Parent = Workspace
 
     -- Add distance label
-    local distance = (playerA.Character.HumanoidRootPart.Position - playerB.Character.HumanoidRootPart.Position).Magnitude
+    local distance = (positionA - positionB).Magnitude
     createLineLabel(line, distance)
 
     -- Update the line every frame
@@ -389,15 +401,28 @@ local function createDynamicLineBetweenPlayers(playerA, playerB, color)
             connection:Disconnect()
             return
         end
-        if not playerA.Character or not playerA.Character:FindFirstChild("HumanoidRootPart") or
-           not playerB.Character or not playerB.Character:FindFirstChild("HumanoidRootPart") then
+
+        local newStart, newEnd
+        if playerA:IsA("Player") and playerA.Character and playerA.Character:FindFirstChild("HumanoidRootPart") then
+            newStart = playerA.Character.HumanoidRootPart.Position
+        elseif playerA:IsA("BasePart") then
+            newStart = playerA.Position
+        else
             line:Destroy()
             connection:Disconnect()
             return
         end
 
-        local newStart = playerA.Character.HumanoidRootPart.Position
-        local newEnd = playerB.Character.HumanoidRootPart.Position
+        if playerB:IsA("Player") and playerB.Character and playerB.Character:FindFirstChild("HumanoidRootPart") then
+            newEnd = playerB.Character.HumanoidRootPart.Position
+        elseif playerB:IsA("BasePart") then
+            newEnd = playerB.Position
+        else
+            line:Destroy()
+            connection:Disconnect()
+            return
+        end
+
         line.Size = Vector3.new(0.2, 0.2, (newStart - newEnd).Magnitude)
         line.CFrame = CFrame.new(newStart, newEnd) * CFrame.new(0, 0, -line.Size.Z / 2)
 
@@ -412,28 +437,31 @@ local function createDynamicLineBetweenPlayers(playerA, playerB, color)
 end
 
 -- Function to handle player tracking
--- Function to handle player tracking
 local function trackPlayer(player)
-    if not player or not player:IsA("Player") then return end
+    if not player or not (player:IsA("Player") or player:IsA("BasePart")) then
+        showAnnouncement("Invalid player or object to track!")
+        return
+    end
 
-    -- Check how many players are currently tracked
+    -- Check how many players or objects are currently tracked
     local currentTrackedCount = 0
     for _ in pairs(trackedPlayers) do
         currentTrackedCount = currentTrackedCount + 1
     end
 
-    -- Limit to 2 players only
+    -- Limit to 2 tracked players or objects
     if currentTrackedCount >= 2 then
-        showAnnouncement("You can only track 2 players at once!")
+        showAnnouncement("You can only track 2 players or objects at once!")
         return
     end
 
     if trackedPlayers[player] then
-        -- Player is already being tracked; untrack them
+        -- Player or object is already being tracked; untrack them
         if trackedPlayers[player].Tracker then
             trackedPlayers[player].Tracker:Destroy()
         end
-        -- Remove all lines associated with this player
+
+        -- Remove all lines associated with this player or object
         for otherPlayer, data in pairs(trackedPlayers) do
             if otherPlayer ~= player then
                 for i, line in ipairs(data.Lines) do
@@ -446,20 +474,21 @@ local function trackPlayer(player)
                 end
             end
         end
+
         trackedPlayers[player] = nil
         showAnnouncement("Stopped tracking " .. player.Name)
     else
-        -- Check if maximum tracked players reached
+        -- Check if maximum tracked players or objects reached
         if #trackedPlayers >= MAX_TRACKED_PLAYERS or currentTrackedCount >= 2 then
-            showAnnouncement("Maximum of 2 players can be tracked at once!")
+            showAnnouncement("Maximum of 2 players or objects can be tracked at once!")
             return
         end
 
-        -- Start tracking the player
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        -- Start tracking the player or object
+        if player:IsA("Player") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             -- Create a BillboardGui tracker
             local tracker = Instance.new("BillboardGui")
-            tracker.Size = UDim2.new(0, 20, 0, 20)
+            tracker.Size = UDim2.new(0, 40, 0, 40)
             tracker.StudsOffset = Vector3.new(0, 3, 0)
             tracker.AlwaysOnTop = true
             tracker.Name = "Tracker"
@@ -467,20 +496,49 @@ local function trackPlayer(player)
 
             local trackerCircle = Instance.new("Frame")
             trackerCircle.Size = UDim2.new(1, 0, 1, 0)
-            trackerCircle.Position = UDim2.new(0, 0, 0, 0)
-            trackerCircle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            trackerCircle.BackgroundTransparency = 0.5
+            trackerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+            trackerCircle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            trackerCircle.BackgroundTransparency = 0.3
             trackerCircle.BorderSizePixel = 0
             trackerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
             trackerCircle.Parent = tracker
 
-            -- Initialize lines table for this player
             trackedPlayers[player] = {Tracker = tracker, Lines = {}}
 
-            -- Create lines between this player and all other tracked players
+            -- Create lines between this player and all other tracked players or objects
             for otherPlayer, data in pairs(trackedPlayers) do
                 if otherPlayer ~= player then
-                    local line = createDynamicLineBetweenPlayers(player, otherPlayer, Color3.fromRGB(255, 0, 0))
+                    local line = createDynamicLineBetweenPlayers(player, otherPlayer, Color3.fromRGB(0, 255, 0))
+                    table.insert(trackedPlayers[player].Lines, line)
+                    table.insert(data.Lines, line) -- Also add to the other player's lines
+                end
+            end
+
+            showAnnouncement("Started tracking " .. player.Name)
+        elseif player:IsA("BasePart") then
+            -- Create a BillboardGui tracker for objects
+            local tracker = Instance.new("BillboardGui")
+            tracker.Size = UDim2.new(0, 40, 0, 40)
+            tracker.StudsOffset = Vector3.new(0, 3, 0)
+            tracker.AlwaysOnTop = true
+            tracker.Name = "Tracker"
+            tracker.Parent = player
+
+            local trackerCircle = Instance.new("Frame")
+            trackerCircle.Size = UDim2.new(1, 0, 1, 0)
+            trackerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+            trackerCircle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            trackerCircle.BackgroundTransparency = 0.3
+            trackerCircle.BorderSizePixel = 0
+            trackerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+            trackerCircle.Parent = tracker
+
+            trackedPlayers[player] = {Tracker = tracker, Lines = {}}
+
+            -- Create lines between this object and all other tracked entities
+            for otherPlayer, data in pairs(trackedPlayers) do
+                if otherPlayer ~= player then
+                    local line = createDynamicLineBetweenPlayers(player, otherPlayer, Color3.fromRGB(0, 255, 0))
                     table.insert(trackedPlayers[player].Lines, line)
                     table.insert(data.Lines, line) -- Also add to the other player's lines
                 end
@@ -488,7 +546,7 @@ local function trackPlayer(player)
 
             showAnnouncement("Started tracking " .. player.Name)
         else
-            showAnnouncement("Player's character not fully loaded!")
+            showAnnouncement("Player or object not valid for tracking!")
         end
     end
 end
