@@ -1,0 +1,300 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+// Function declarations
+void menu();
+void addition();
+void subtraction();
+void multiplication();
+void division();
+void power();
+void square_root();
+void logarithm();
+void trigonometry();
+void clear_input_buffer(); // Function to clear the input buffer
+void loading_animation(); // Function for a loading animation
+
+// Function to compute square root using the Newton-Raphson method
+double sqrt_custom(double number) {
+    double approx = number / 2.0;
+    double better_approx;
+    do {
+        better_approx = (approx + (number / approx)) / 2.0;
+        if (better_approx == approx) break;
+        approx = better_approx;
+    } while (1);
+    return approx;
+}
+
+// Function to compute logarithm (natural) using Taylor series expansion
+double log_custom(double x) {
+    if (x <= 0) return -1; // Logarithm undefined for non-positive numbers
+    double result = 0.0;
+    double term = (x - 1) / (x + 1);
+    double term_squared = term * term;
+    double numerator = term;
+    int n = 1;
+
+    while (n < 10000) { // Using a limit to approximate logarithm
+        result += numerator / n;
+        numerator *= term_squared; // Move to the next term
+        n += 2; // Increment by 2 for the series
+    }
+    return 2 * result;
+}
+
+// Function for sine using Taylor series expansion
+double sin_custom(double angle) {
+    double result = 0.0;
+    double term = angle; // The first term of the series
+    int n = 1;
+
+    while (n < 100) { // Use first 100 terms
+        result += term;
+        term *= -angle * angle / ((2 * n) * (2 * n + 1)); // Calculate next term
+        n++;
+    }
+    return result;
+}
+
+// Function for cosine using Taylor series expansion
+double cos_custom(double angle) {
+    double result = 0.0;
+    double term = 1.0; // The first term of the series
+    int n = 0;
+
+    while (n < 100) { // Use first 100 terms
+        result += term;
+        term *= -angle * angle / ((2 * n + 1) * (2 * n + 2)); // Calculate next term
+        n++;
+    }
+    return result;
+}
+
+// Main function
+int main() {
+    int choice;
+    while (1) {
+        menu();
+        printf("Enter your choice: ");
+        
+        // Input handling for the main menu choice
+        if (scanf("%d", &choice) != 1) {
+            printf("Invalid input! Please enter a number.\n");
+            clear_input_buffer(); // Clear the input buffer on error
+            continue;
+        }
+
+        // Display loading animation
+        loading_animation();
+        
+        switch (choice) {
+            case 1: addition(); break;
+            case 2: subtraction(); break;
+            case 3: multiplication(); break;
+            case 4: division(); break;
+            case 5: power(); break;
+            case 6: square_root(); break;
+            case 7: logarithm(); break;
+            case 8: trigonometry(); break;
+            case 9: exit(0); // Exit the program
+            default: printf("Invalid choice! Try again.\n"); break;
+        }
+    }
+    return 0;
+}
+
+// Function to display menu
+void menu() {
+    printf("\n--- Advanced Calculator ---\n");
+    printf("1. Addition\n");
+    printf("2. Subtraction\n");
+    printf("3. Multiplication\n");
+    printf("4. Division\n");
+    printf("5. Power\n");
+    printf("6. Square Root\n");
+    printf("7. Logarithm\n");
+    printf("8. Trigonometric Functions\n");
+    printf("9. Exit\n");
+}
+
+// Function to clear the input buffer
+void clear_input_buffer() {
+    while (getchar() != '\n'); // Discard characters until a newline
+}
+
+// Function for a simple loading animation
+void loading_animation() {
+    printf("Processing");
+    for (int i = 0; i < 3; i++) {
+        printf(".");
+        fflush(stdout); // Ensure the output is immediately displayed
+        for (volatile int j = 0; j < 100000000; j++); // Delay loop
+    }
+    printf("\n");
+}
+
+// Function for addition
+void addition() {
+    double a, b;
+    while (1) {
+        printf("Enter two numbers to add: ");
+        if (scanf("%lf %lf", &a, &b) == 2) {
+            printf("Result: %.2lf\n", a + b);
+            break; // Exit loop on successful input
+        } else {
+            printf("Invalid input! Please enter two numbers.\n");
+            clear_input_buffer();
+        }
+    }
+}
+
+// Function for subtraction
+void subtraction() {
+    double a, b;
+    while (1) {
+        printf("Enter two numbers to subtract: ");
+        if (scanf("%lf %lf", &a, &b) == 2) {
+            printf("Result: %.2lf\n", a - b);
+            break; // Exit loop on successful input
+        } else {
+            printf("Invalid input! Please enter two numbers.\n");
+            clear_input_buffer();
+        }
+    }
+}
+
+// Function for multiplication
+void multiplication() {
+    double a, b;
+    while (1) {
+        printf("Enter two numbers to multiply: ");
+        if (scanf("%lf %lf", &a, &b) == 2) {
+            printf("Result: %.2lf\n", a * b);
+            break; // Exit loop on successful input
+        } else {
+            printf("Invalid input! Please enter two numbers.\n");
+            clear_input_buffer();
+        }
+    }
+}
+
+// Function for division
+void division() {
+    double a, b;
+    while (1) {
+        printf("Enter two numbers to divide: ");
+        if (scanf("%lf %lf", &a, &b) == 2) {
+            if (b != 0) {
+                printf("Result: %.2lf\n", a / b);
+            } else {
+                printf("Error! Division by zero.\n");
+            }
+            break; // Exit loop on successful input
+        } else {
+            printf("Invalid input! Please enter two numbers.\n");
+            clear_input_buffer();
+        }
+    }
+}
+
+// Function for power
+void power() {
+    double base, exp;
+    while (1) {
+        printf("Enter base and exponent: ");
+        if (scanf("%lf %lf", &base, &exp) == 2) {
+            double result = 1.0;
+            for (int i = 0; i < (int)exp; i++) {
+                result *= base; // Calculate power iteratively
+            }
+            printf("Result: %.2lf\n", result);
+            break; // Exit loop on successful input
+        } else {
+            printf("Invalid input! Please enter two numbers.\n");
+            clear_input_buffer();
+        }
+    }
+}
+
+// Function for square root
+void square_root() {
+    double a;
+    while (1) {
+        printf("Enter a number to find the square root: ");
+        if (scanf("%lf", &a) == 1) {
+            if (a >= 0) {
+                printf("Result: %.2lf\n", sqrt_custom(a));
+            } else {
+                printf("Error! Negative input.\n");
+            }
+            break; // Exit loop on successful input
+        } else {
+            printf("Invalid input! Please enter a number.\n");
+            clear_input_buffer();
+        }
+    }
+}
+
+// Function for logarithm
+void logarithm() {
+    double a;
+    while (1) {
+        printf("Enter a number to find the natural logarithm: ");
+        if (scanf("%lf", &a) == 1) {
+            double log_result = log_custom(a);
+            if (log_result != -1) {
+                printf("Result: %.2lf\n", log_result);
+            } else {
+                printf("Error! Logarithm undefined for non-positive numbers.\n");
+            }
+            break; // Exit loop on successful input
+        } else {
+            printf("Invalid input! Please enter a number.\n");
+            clear_input_buffer();
+        }
+    }
+}
+
+// Function for trigonometric calculations
+void trigonometry() {
+    int trig_choice;
+    double angle, result;
+    printf("Select Trigonometric Function:\n");
+    printf("1. Sine\n2. Cosine\n3. Tangent\n");
+    printf("Enter choice: ");
+    
+    if (scanf("%d", &trig_choice) != 1) {
+        clear_input_buffer();
+        printf("Invalid input! Please enter a number.\n");
+        return; // Exit early on error
+    }
+    
+    printf("Enter angle in degrees: ");
+    if (scanf("%lf", &angle) != 1) {
+        clear_input_buffer();
+        printf("Invalid input! Please enter a number.\n");
+        return; // Exit early on error
+    }
+
+    // Convert angle to radians
+    angle = angle * 3.141592653589793 / 180.0;
+
+    switch (trig_choice) {
+        case 1:
+            result = sin_custom(angle);
+            printf("sin(angle) = %.2lf\n", result);
+            break;
+        case 2:
+            result = cos_custom(angle);
+            printf("cos(angle) = %.2lf\n", result);
+            break;
+        case 3:
+            result = sin_custom(angle) / cos_custom(angle);
+            printf("tan(angle) = %.2lf\n", result);
+            break;
+        default:
+            printf("Invalid choice for trigonometric function.\n");
+            break;
+    }
+}
