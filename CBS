@@ -1,0 +1,419 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h> // Include this for variadic functions
+
+#define MAX_TRANSACTIONS 100
+#define MAX_TRANS_DESC_LEN 100
+
+struct User {
+    char username[50];
+    char password[50];
+    float balance;
+    char transactions[MAX_TRANSACTIONS][MAX_TRANS_DESC_LEN]; // Array to store transaction history
+    int transactionCount;
+};
+
+void registerUser();
+int loginUser();
+void depositMoney(char* username);
+void withdrawMoney(char* username);
+void checkBalance(char* username);
+void transferMoney(char* username);
+void changePassword(char* username);
+void viewTransactions(char* username);
+void deleteAccount(char* username);
+void menu(char* username);
+int saveUser(struct User user); // Updated to return int for error handling
+struct User getUser(char* username);
+int userExists(char* username);
+int validateLogin(char* username, char* password);
+void saveTransaction(char* username, const char* format, ...); // Updated declaration
+void calculateInterest(char* username); // New feature
+void accountSummary(char* username);    // New feature
+
+int main() {
+    int choice;
+    
+    while (1) {
+        printf("\nWelcome to the Bank System\n");
+        printf("1. Register\n");
+        printf("2. Login\n");
+        printf("3. Exit\n");
+        printf("Choose an option: ");
+        scanf("%d", &choice);
+        getchar();
+        
+        switch (choice) {
+            case 1:
+                registerUser();
+                break;
+            case 2:
+                if (loginUser()) {
+                    printf("Login successful!\n");
+                } else {
+                    printf("Invalid username or password.\n");
+                }
+                break;
+            case 3:
+                printf("Thank you for using our banking system!\n");
+                return 0;
+            default:
+                printf("Invalid option. Please try again.\n");
+        }
+    }
+}
+
+void registerUser() {
+    struct User newUser;
+    
+    printf("Enter a username: ");
+    fgets(newUser.username, 50, stdin);
+    newUser.username[strcspn(newUser.username, "\n")] = 0;
+    
+    if (userExists(newUser.username)) {
+        printf("Username already exists!\n");
+        return;
+    }
+    
+    printf("Enter a password: ");
+    fgets(newUser.password, 50, stdin);
+    newUser.password[strcspn(newUser.password, "\n")] = 0;
+    
+    newUser.balance = 0.0;
+    newUser.transactionCount = 0; // Initialize transaction count
+    
+    if (saveUser(newUser) == 0) {
+        printf("Registration successful!\n");
+    } else {
+        printf("Error saving user!\n");
+    }
+}
+
+int loginUser() {
+    char username[50], password[50];
+    
+    printf("Enter username: ");
+    fgets(username, 50, stdin);
+    username[strcspn(username, "\n")] = 0;
+    
+    printf("Enter password: ");
+    fgets(password, 50, stdin);
+    password[strcspn(password, "\n")] = 0;
+    
+    if (validateLogin(username, password)) {
+        menu(username);
+        return 1;
+    }
+    return 0;
+}
+
+void depositMoney(char* username) {
+    struct User user = getUser(username);
+    float amount;
+    
+    printf("Enter amount to deposit: ");
+    scanf("%f", &amount);
+    getchar();
+    
+    if (amount > 0) {
+        user.balance += amount;
+        if (saveUser(user) == 0) {
+            saveTransaction(username, "Deposited $%.2f", amount);
+            printf("Deposit successful! New balance: %.2f\n", user.balance);
+        } else {
+            printf("Error saving transaction!\n");
+        }
+    } else {
+        printf("Invalid amount.\n");
+    }
+}
+
+void withdrawMoney(char* username) {
+    struct User user = getUser(username);
+    float amount;
+    
+    printf("Enter amount to withdraw: ");
+    scanf("%f", &amount);
+    getchar();
+    
+    if (amount > 0 && amount <= user.balance) {
+        user.balance -= amount;
+        if (saveUser(user) == 0) {
+            saveTransaction(username, "Withdrew $%.2f", amount);
+            printf("Withdrawal successful! New balance: %.2f\n", user.balance);
+        } else {
+            printf("Error saving transaction!\n");
+        }
+    } else {
+        printf("Insufficient funds or invalid amount.\n");
+    }
+}
+
+void transferMoney(char* username) {
+    struct User sender = getUser(username);
+    char recipientUsername[50];
+    float amount;
+    
+    printf("Enter recipient username: ");
+    fgets(recipientUsername, 50, stdin);
+    recipientUsername[strcspn(recipientUsername, "\n")] = 0;
+    
+    if (!userExists(recipientUsername)) {
+        printf("Recipient username does not exist.\n");
+        return;
+    }
+    
+    printf("Enter amount to transfer: ");
+    scanf("%f", &amount);
+    getchar();
+    
+    if (amount > 0 && amount <= sender.balance) {
+        struct User recipient = getUser(recipientUsername);
+        sender.balance -= amount;
+        recipient.balance += amount;
+        if (saveUser(sender) == 0 && saveUser(recipient) == 0) {
+            saveTransaction(username, "Transferred $%.2f to %s", amount, recipientUsername);
+            printf("Transfer successful! New balance: %.2f\n", sender.balance);
+        } else {
+            printf("Error saving transaction!\n");
+        }
+    } else {
+        printf("Insufficient funds or invalid amount.\n");
+    }
+}
+
+void checkBalance(char* username) {
+    struct User user = getUser(username);
+    printf("Current balance: %.2f\n", user.balance);
+}
+
+void changePassword(char* username) {
+    struct User user = getUser(username);
+    char newPassword[50];
+    
+    printf("Enter new password: ");
+    fgets(newPassword, 50, stdin);
+    newPassword[strcspn(newPassword, "\n")] = 0;
+    
+    strcpy(user.password, newPassword);
+    if (saveUser(user) == 0) {
+        printf("Password changed successfully!\n");
+    } else {
+        printf("Error saving new password!\n");
+    }
+}
+
+void viewTransactions(char* username) {
+    struct User user = getUser(username);
+    
+    printf("Transaction History:\n");
+    for (int i = 0; i < user.transactionCount; i++) {
+        printf("%s\n", user.transactions[i]);
+    }
+}
+
+void deleteAccount(char* username) {
+    FILE *file = fopen("database.txt", "r");
+    FILE *tempFile = fopen("temp.txt", "w");
+    
+    if (tempFile == NULL) {
+        printf("Error creating temporary file!\n");
+        if (file != NULL) fclose(file);
+        return;
+    }
+    
+    struct User temp;
+    while (fscanf(file, "%s %s %f\n", temp.username, temp.password, &temp.balance) != EOF) {
+        if (strcmp(temp.username, username) != 0) {
+            fprintf(tempFile, "%s %s %.2f\n", temp.username, temp.password, temp.balance);
+        }
+    }
+    
+    fclose(file);
+    fclose(tempFile);
+    remove("database.txt");
+    rename("temp.txt", "database.txt");
+    
+    printf("Account deleted successfully.\n");
+}
+
+void menu(char* username) {
+    int choice;
+    
+    do {
+        printf("\n1. Deposit\n");
+        printf("2. Withdraw\n");
+        printf("3. Transfer Money\n");
+        printf("4. Check Balance\n");
+        printf("5. Change Password\n");
+        printf("6. View Transactions\n");
+        printf("7. Calculate Interest\n");  // New feature
+        printf("8. Account Summary\n");     // New feature
+        printf("9. Delete Account\n");
+        printf("10. Logout\n");
+        printf("Choose an option: ");
+        if (scanf("%d", &choice) != 1) { // Check for non-numeric input
+            printf("Invalid input. Please enter a number.\n");
+            while (getchar() != '\n'); // Clear invalid input
+            continue;
+        }
+        getchar(); // Clear newline
+        
+        switch (choice) {
+            case 1:
+                depositMoney(username);
+                break;
+            case 2:
+                withdrawMoney(username);
+                break;
+            case 3:
+                transferMoney(username);
+                break;
+            case 4:
+                checkBalance(username);
+                break;
+            case 5:
+                changePassword(username);
+                break;
+            case 6:
+                viewTransactions(username);
+                break;
+            case 7:
+                calculateInterest(username);
+                break;
+            case 8:
+                accountSummary(username);
+                break;
+            case 9:
+                deleteAccount(username);
+                return; // Logout after account deletion
+            case 10:
+                printf("Logging out...\n");
+                break;
+            default:
+                printf("Invalid option. Try again.\n");
+        }
+    } while (choice != 10);
+}
+
+int saveUser(struct User user) {
+    FILE *file = fopen("database.txt", "r");
+    FILE *tempFile = fopen("temp.txt", "w");
+    
+    if (!tempFile) {
+        perror("Error creating temporary file");
+        if (file) fclose(file);
+        return -1;
+    }
+    
+    int userFound = 0;
+    struct User temp;
+    
+    if (file != NULL) {
+        while (fscanf(file, "%s %s %f\n", temp.username, temp.password, &temp.balance) != EOF) {
+            if (strcmp(temp.username, user.username) == 0) {
+                userFound = 1;
+                fprintf(tempFile, "%s %s %.2f\n", user.username, user.password, user.balance);
+            } else {
+                fprintf(tempFile, "%s %s %.2f\n", temp.username, temp.password, temp.balance);
+            }
+        }
+        fclose(file);
+    }
+    
+    if (!userFound) {
+        fprintf(tempFile, "%s %s %.2f\n", user.username, user.password, user.balance);
+    }
+    
+    fclose(tempFile);
+    remove("database.txt");
+    rename("temp.txt", "database.txt");
+    
+    return 0;
+}
+
+struct User getUser(char* username) {
+    FILE *file = fopen("database.txt", "r");
+    struct User user;
+    
+    while (fscanf(file, "%s %s %f\n", user.username, user.password, &user.balance) != EOF) {
+        if (strcmp(user.username, username) == 0) {
+            fclose(file);
+            return user;
+        }
+    }
+    
+    fclose(file);
+    strcpy(user.username, "");
+    return user;
+}
+
+int userExists(char* username) {
+    FILE *file = fopen("database.txt", "r");
+    struct User temp;
+    
+    while (fscanf(file, "%s %s %f\n", temp.username, temp.password, &temp.balance) != EOF) {
+        if (strcmp(temp.username, username) == 0) {
+            fclose(file);
+            return 1;
+        }
+    }
+    
+    fclose(file);
+    return 0;
+}
+
+int validateLogin(char* username, char* password) {
+    struct User user = getUser(username);
+    return (strcmp(user.password, password) == 0);
+}
+
+void saveTransaction(char* username, const char* format, ...) {
+    struct User user = getUser(username);
+    
+    if (user.transactionCount >= MAX_TRANSACTIONS) {
+        printf("Transaction limit reached. Cannot save more transactions.\n");
+        return;
+    }
+    
+    va_list args;
+    va_start(args, format);
+    vsnprintf(user.transactions[user.transactionCount], MAX_TRANS_DESC_LEN, format, args);
+    va_end(args);
+    
+    user.transactionCount++;
+    saveUser(user);
+}
+
+void calculateInterest(char* username) {
+    struct User user = getUser(username);
+    float rate;
+    int years;
+    
+    printf("Enter interest rate (percentage): ");
+    scanf("%f", &rate);
+    getchar();
+    
+    printf("Enter the number of years: ");
+    scanf("%d", &years);
+    getchar();
+    
+    float interest = user.balance * (rate / 100) * years;
+    printf("Interest after %d years at %.2f%%: %.2f\n", years, rate, interest);
+}
+
+void accountSummary(char* username) {
+    struct User user = getUser(username);
+    
+    printf("Account Summary:\n");
+    printf("Username: %s\n", user.username);
+    printf("Current balance: %.2f\n", user.balance);
+    printf("Number of transactions: %d\n", user.transactionCount);
+    
+    if (user.transactionCount > 0) {
+        printf("Last transaction: %s\n", user.transactions[user.transactionCount - 1]);
+    } else {
+        printf("No transactions recorded.\n");
+    }
+}
