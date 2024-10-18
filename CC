@@ -1,0 +1,183 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+
+typedef enum {
+    TOKEN_NUMBER,
+    TOKEN_PLUS,
+    TOKEN_MINUS,
+    TOKEN_MULTIPLY,
+    TOKEN_DIVIDE,
+    TOKEN_LPAREN,
+    TOKEN_RPAREN,
+    TOKEN_EOF
+} TokenType;
+
+typedef struct {
+    TokenType type;
+    int value;  // Only used for TOKEN_NUMBER
+} Token;
+
+typedef struct Node {
+    TokenType type;
+    struct Node *left;
+    struct Node *right;
+    int value;  // Used for number nodes
+} Node;
+
+// Function to create a new AST node
+Node *new_node(TokenType type, Node *left, Node *right, int value) {
+    Node *node = malloc(sizeof(Node));
+    node->type = type;
+    node->left = left;
+    node->right = right;
+    node->value = value;
+    return node;
+}
+
+// Lexer function to get the next token from the input
+Token *next_token(const char **input) {
+    while (isspace(**input)) (*input)++;
+
+    if (isdigit(**input)) {
+        int value = 0;
+        while (isdigit(**input)) {
+            value = value * 10 + (**input - '0');
+            (*input)++;
+        }
+        Token *token = malloc(sizeof(Token));
+        token->type = TOKEN_NUMBER;
+        token->value = value;
+        return token;
+    }
+
+    if (**input == '+') {
+        (*input)++;
+        Token *token = malloc(sizeof(Token));
+        token->type = TOKEN_PLUS;
+        return token;
+    }
+
+    if (**input == '-') {
+        (*input)++;
+        Token *token = malloc(sizeof(Token));
+        token->type = TOKEN_MINUS;
+        return token;
+    }
+
+    if (**input == '*') {
+        (*input)++;
+        Token *token = malloc(sizeof(Token));
+        token->type = TOKEN_MULTIPLY;
+        return token;
+    }
+
+    if (**input == '/') {
+        (*input)++;
+        Token *token = malloc(sizeof(Token));
+        token->type = TOKEN_DIVIDE;
+        return token;
+    }
+
+    if (**input == '(') {
+        (*input)++;
+        Token *token = malloc(sizeof(Token));
+        token->type = TOKEN_LPAREN;
+        return token;
+    }
+
+    if (**input == ')') {
+        (*input)++;
+        Token *token = malloc(sizeof(Token));
+        token->type = TOKEN_RPAREN;
+        return token;
+    }
+
+    if (**input == '\0') {
+        Token *token = malloc(sizeof(Token));
+        token->type = TOKEN_EOF;
+        return token;
+    }
+
+    fprintf(stderr, "Unknown character: %c\n", **input);
+    exit(1);
+}
+
+// Function to evaluate the AST
+int evaluate(Node *node) {
+    if (node->type == TOKEN_NUMBER) {
+        return node->value;
+    }
+    
+    int left = evaluate(node->left);
+    int right = evaluate(node->right);
+
+    switch (node->type) {
+        case TOKEN_PLUS: return left + right;
+        case TOKEN_MINUS: return left - right;
+        case TOKEN_MULTIPLY: return left * right;
+        case TOKEN_DIVIDE: return left / right;
+        default: exit(1);
+    }
+}
+
+// Parser functions
+Node *factor(const char **input) {
+    Token *token = next_token(input);
+    Node *node = NULL;
+
+    if (token->type == TOKEN_NUMBER) {
+        node = new_node(TOKEN_NUMBER, NULL, NULL, token->value);
+    } else if (token->type == TOKEN_LPAREN) {
+        node = expression(input);
+        token = next_token(input); // Consume the closing parenthesis
+        if (token->type != TOKEN_RPAREN) {
+            fprintf(stderr, "Expected closing parenthesis\n");
+            exit(1);
+        }
+    }
+
+    free(token);
+    return node;
+}
+
+Node *term(const char **input) {
+    Node *node = factor(input);
+    Token *token;
+
+    while ((token = next_token(input))->type == TOKEN_MULTIPLY ||
+           token->type == TOKEN_DIVIDE) {
+        Node *new_node = new_node(token->type, node, factor(input), 0);
+        node = new_node;
+    }
+    
+    free(token);
+    return node;
+}
+
+Node *expression(const char **input) {
+    Node *node = term(input);
+    Token *token;
+
+    while ((token = next_token(input))->type == TOKEN_PLUS ||
+           token->type == TOKEN_MINUS) {
+        Node *new_node = new_node(token->type, node, term(input), 0);
+        node = new_node;
+    }
+    
+    free(token);
+    return node;
+}
+
+// Main function to run the interpreter
+int main() {
+    const char *input = "3 + 5 * (2 - 8)";
+    const char **input_ptr = &input;
+
+    Node *ast = expression(input_ptr);
+    printf("Result: %d\n", evaluate(ast));
+
+    // Free allocated memory (not shown here for brevity)
+
+    return 0;
+}
