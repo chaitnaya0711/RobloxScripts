@@ -1,3 +1,6 @@
+
+
+You said:
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -192,7 +195,7 @@ local function createPlayerInfoFrame(player, scrollFrame)
             local displayName = player.DisplayName
             local userId = player.UserId
             local membershipType = player.MembershipType
-            
+
             createInfoLabel(player.Name, 0).Font = Enum.Font.GothamBold
             createInfoLabel("Account Age: " .. accountAge .. " days", 0.25)
             createInfoLabel("Display Name: " .. displayName, 0.5)
@@ -205,7 +208,7 @@ local function createPlayerInfoFrame(player, scrollFrame)
     end
 
     updateInfo()
-    
+
     -- Click to copy info
     local clickDebounce = false
     frame.InputBegan:Connect(function(input)
@@ -240,7 +243,7 @@ local function initialize()
 
     local button = createToggleButton()
     local gui, scrollFrame, closeButton, mainFrame = createPlayerListGui()
-    
+
     -- Parent the GUI elements
     gui.Parent = PlayerGui
     button.Parent = gui
@@ -311,4 +314,4 @@ local function initialize()
 end
 
 -- Start the GUI
-initialize()
+initialize() simple task, you have to get all MOTHER FUCKING PUBLICALLY AVAILABLE INFO of the player because currently it shows us only this previously using this program , MAKW SURE TO SHOW THE WHOLE CODE AND DONT SHOW ANY TEXT
