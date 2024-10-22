@@ -1,0 +1,393 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local player = Players.LocalPlayer
+
+-- Create GUI elements
+local ScreenGui = Instance.new("ScreenGui")
+local BlurEffect = Instance.new("BlurEffect")
+local MainFrame = Instance.new("Frame")
+local OpenButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton")
+local PlayerList = Instance.new("ScrollingFrame")
+local UICorner = Instance.new("UICorner")
+local ListLayout = Instance.new("UIListLayout")
+local Title = Instance.new("TextLabel")
+local SearchBar = Instance.new("TextBox")
+
+-- Setup blur effect
+BlurEffect.Parent = game:GetService("Lighting")
+BlurEffect.Size = 0
+
+-- GUI Properties
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Open Button (improved design)
+OpenButton.Parent = ScreenGui
+OpenButton.Position = UDim2.new(0.92, 0, 0.1, 0)
+OpenButton.Size = UDim2.new(0.06, 0, 0.04, 0)
+OpenButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+OpenButton.Text = "Player List"
+OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenButton.Font = Enum.Font.GothamBold
+OpenButton.TextSize = 14
+OpenButton.AutoButtonColor = true
+Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(0.3, 0)
+
+-- Add shadow to Open Button
+local OpenButtonShadow = Instance.new("ImageLabel")
+OpenButtonShadow.Parent = OpenButton
+OpenButtonShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+OpenButtonShadow.BackgroundTransparency = 1
+OpenButtonShadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+OpenButtonShadow.Size = UDim2.new(1.1, 0, 1.1, 0)
+OpenButtonShadow.ZIndex = -1
+OpenButtonShadow.Image = "rbxassetid://1316045217"
+OpenButtonShadow.ImageTransparency = 0.7
+OpenButtonShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+
+-- Main Frame (improved design)
+MainFrame.Parent = ScreenGui
+MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
+MainFrame.Size = UDim2.new(0.5, 0, 0.7, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+UICorner.Parent = MainFrame
+UICorner.CornerRadius = UDim.new(0.02, 0)
+
+-- Add shadow to Main Frame
+local MainFrameShadow = Instance.new("ImageLabel")
+MainFrameShadow.Parent = MainFrame
+MainFrameShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrameShadow.BackgroundTransparency = 1
+MainFrameShadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrameShadow.Size = UDim2.new(1.02, 0, 1.02, 0)
+MainFrameShadow.ZIndex = -1
+MainFrameShadow.Image = "rbxassetid://1316045217"
+MainFrameShadow.ImageTransparency = 0.5
+MainFrameShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+
+-- Title (improved design)
+Title.Parent = MainFrame
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.Size = UDim2.new(1, 0, 0.08, 0)
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Title.BackgroundTransparency = 0.5
+Title.Text = "Player Information"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 20
+
+-- Search Bar
+SearchBar.Parent = MainFrame
+SearchBar.Position = UDim2.new(0.025, 0, 0.1, 0)
+SearchBar.Size = UDim2.new(0.95, 0, 0.05, 0)
+SearchBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+SearchBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchBar.PlaceholderText = "Search players..."
+SearchBar.PlaceholderColor3 = Color3.fromRGB(180, 180, 180)
+SearchBar.Font = Enum.Font.Gotham
+SearchBar.TextSize = 14
+SearchBar.ClearTextOnFocus = false
+Instance.new("UICorner", SearchBar).CornerRadius = UDim.new(0.2, 0)
+
+-- Close Button (improved design)
+CloseButton.Parent = MainFrame
+CloseButton.Position = UDim2.new(0.93, 0, 0.02, 0)
+CloseButton.Size = UDim2.new(0.05, 0, 0.04, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+CloseButton.Text = "×"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 20
+Instance.new("UICorner", CloseButton).CornerRadius = UDim.new(0.3, 0)
+
+-- Player List (improved design)
+PlayerList.Parent = MainFrame
+PlayerList.Position = UDim2.new(0.025, 0, 0.17, 0)
+PlayerList.Size = UDim2.new(0.95, 0, 0.81, 0)
+PlayerList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+PlayerList.BackgroundTransparency = 0.5
+PlayerList.BorderSizePixel = 0
+PlayerList.ScrollBarThickness = 4
+PlayerList.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
+PlayerList.ScrollBarImageTransparency = 0.5
+Instance.new("UICorner", PlayerList).CornerRadius = UDim.new(0.02, 0)
+
+-- List Layout
+ListLayout.Parent = PlayerList
+ListLayout.Padding = UDim.new(0, 8)
+ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+ListLayout.SortOrder = Enum.SortOrder.Name
+
+-- Function to format date
+local function formatDate(unixTimestamp)
+    local date = os.date("*t", unixTimestamp)
+    return string.format("%d/%d/%d", date.month, date.day, date.year)
+end
+
+-- Function to convert account age
+local function convertAccountAge(days)
+    if days < 30 then
+        return days .. " days"
+    elseif days < 365 then
+        local months = math.floor(days / 30)
+        local remainingDays = days % 30
+        return months .. " months" .. (remainingDays > 0 and " " .. remainingDays .. " days" or "")
+    else
+        local years = math.floor(days / 365)
+        local remainingMonths = math.floor((days % 365) / 30)
+        return years .. " years" .. (remainingMonths > 0 and " " .. remainingMonths .. " months" or "")
+    end
+end
+
+-- Function to get player information
+local function getPlayerInfo(plr)
+    local info = {
+        Name = plr.Name,
+        DisplayName = plr.DisplayName,
+        UserId = plr.UserId,
+        AccountAge = plr.AccountAge,
+        AccountCreated = os.time() - (plr.AccountAge * 86400),
+        IsPremium = false,
+        Following = 0,
+        Followers = 0,
+        JoinDate = "",
+        LastOnline = "",
+        LocalizedLocation = "",
+    }
+    
+    -- Try to get premium status
+    local success, _ = pcall(function()
+        info.IsPremium = MarketplaceService:UserOwnsGamePassAsync(plr.UserId, 1)
+    end)
+    
+    -- Try to get follow counts
+    pcall(function()
+        local followingData = game:GetService("HttpService"):JSONDecode(game:HttpGet("https://friends.roblox.com/v1/users/" .. plr.UserId .. "/followings/count"))
+        local followersData = game:GetService("HttpService"):JSONDecode(game:HttpGet("https://friends.roblox.com/v1/users/" .. plr.UserId .. "/followers/count"))
+        info.Following = followingData.count
+        info.Followers = followersData.count
+    end)
+    
+    return info
+end
+
+-- Function to create player buttons
+local function createPlayerButton(plr)
+    local info = getPlayerInfo(plr)
+    
+    local PlayerButton = Instance.new("Frame")
+    PlayerButton.Size = UDim2.new(0.95, 0, 0, 120)
+    PlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    PlayerButton.BackgroundTransparency = 0.3
+    
+    -- Add corner radius and shadow
+    Instance.new("UICorner", PlayerButton).CornerRadius = UDim.new(0.05, 0)
+    
+    -- Create layout for info
+    local infoLayout = Instance.new("UIListLayout")
+    infoLayout.Parent = PlayerButton
+    infoLayout.Padding = UDim.new(0, 4)
+    infoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    infoLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+    infoLayout.FillDirection = Enum.FillDirection.Vertical
+    infoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- Create info labels
+    local function createInfoLabel(text, order)
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.96, 0, 0, 20)
+        label.Position = UDim2.new(0.02, 0, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Font = Enum.Font.Gotham
+        label.TextSize = 14
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.LayoutOrder = order
+        label.Parent = PlayerButton
+        return label
+    end
+    
+    createInfoLabel(string.format("Name: %s (%s)", info.Name, info.DisplayName), 1)
+    createInfoLabel("UserID: " .. info.UserId, 2)
+    createInfoLabel("Account Age: " .. convertAccountAge(info.AccountAge), 3)
+    createInfoLabel("Created: " .. formatDate(info.AccountCreated), 4)
+    createInfoLabel("Premium: " .. (info.IsPremium and "Yes" or "No"), 5)
+    createInfoLabel(string.format("Following: %d | Followers: %d", info.Following, info.Followers), 6)
+    
+    -- Click functionality
+    local Button = Instance.new("TextButton")
+    Button.Parent = PlayerButton
+    Button.Size = UDim2.new(1, 0, 1, 0)
+    Button.BackgroundTransparency = 1
+    Button.Text = ""
+    
+    -- Hover animation
+    Button.MouseEnter:Connect(function()
+        TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(70, 70, 70)}):Play()
+    end)
+    
+    Button.MouseLeave:Connect(function()
+        TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+    end)
+    
+    -- Click to copy info
+    Button.MouseButton1Click:Connect(function()
+        if setclipboard then
+            local clipboardText = string.format([[
+Player Information:
+Username: %s
+Display Name: %s
+UserID: %s
+Account Age: %s
+Account Created: %s
+Premium: %s
+Following: %d
+Followers: %d
+]], info.Name, info.DisplayName, info.UserId, convertAccountAge(info.AccountAge),
+                formatDate(info.AccountCreated), info.IsPremium and "Yes" or "No",
+                info.Following, info.Followers)
+            
+            setclipboard(clipboardText)
+            
+            -- Create notification
+            local notification = Instance.new("TextLabel")
+            notification.Parent = MainFrame
+            notification.Position = UDim2.new(0.5, 0, 0.95, 0)
+            notification.AnchorPoint = Vector2.new(0.5, 1)
+            notification.Size = UDim2.new(0.4, 0, 0.06, 0)
+            notification.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
+            notification.TextColor3 = Color3.fromRGB(255, 255, 255)
+            notification.Text = "Player info copied!"
+            notification.Font = Enum.Font.Gotham
+            notification.TextSize = 14
+            Instance.new("UICorner", notification).CornerRadius = UDim.new(0.2, 0)
+            
+            -- Animate notification
+            notification.BackgroundTransparency = 1
+            notification.TextTransparency = 1
+            TweenService:Create(notification, TweenInfo.new(0.3), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+            task.wait(2)
+            TweenService:Create(notification, TweenInfo.new(0.3), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
+            task.wait(0.3)
+            notification:Destroy()
+        end
+    end)
+    
+    PlayerButton.Parent = PlayerList
+    return PlayerButton
+end
+
+-- Function to update player list
+local function updatePlayerList()
+    for _, child in ipairs(PlayerList:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    local searchText = SearchBar.Text:lower()
+    for _, plr in ipairs(Players:GetPlayers()) do
+      if searchText == "" or string.find(plr.Name:lower(), searchText) or string.find(plr.DisplayName:lower(), searchText) then
+            createPlayerButton(plr)
+        end
+    end
+    
+    -- Update canvas size with padding
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 16)
+end
+
+-- Search bar functionality
+SearchBar:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
+
+-- GUI animations
+local function openGUI()
+    MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
+    TweenService:Create(MainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
+    TweenService:Create(BlurEffect, TweenInfo.new(0.8), {Size = 20}):Play()
+    updatePlayerList()
+end
+
+local function closeGUI()
+    TweenService:Create(MainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, 0, 1.5, 0)}):Play()
+    TweenService:Create(BlurEffect, TweenInfo.new(0.8), {Size = 0}):Play()
+end
+
+-- Button hover effects
+local function addButtonEffects(button, baseColor)
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.3), {
+            BackgroundColor3 = Color3.fromRGB(
+                math.min(baseColor.R * 255 + 20, 255),
+                math.min(baseColor.G * 255 + 20, 255),
+                math.min(baseColor.B * 255 + 20, 255)
+            )
+        }):Play()
+    end)
+    
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.3), {
+            BackgroundColor3 = baseColor
+        }):Play()
+    end)
+end
+
+-- Add hover effects to buttons
+addButtonEffects(OpenButton, Color3.fromRGB(45, 45, 45))
+addButtonEffects(CloseButton, Color3.fromRGB(255, 80, 80))
+
+-- Button connections
+OpenButton.MouseButton1Click:Connect(openGUI)
+CloseButton.MouseButton1Click:Connect(closeGUI)
+
+-- Player events
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+
+-- Initial setup
+updatePlayerList()
+
+-- Add drag functionality to MainFrame
+local UserInputService = game:GetService("UserInputService")
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    TweenService:Create(MainFrame, TweenInfo.new(0.1), {
+        Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    }):Play()
+end
+
+Title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Title.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end) first of all improve the UI it's very cluttered second do you mind also getting the height and width snd other body properties of the player copied aswell lastly do you mind copying it in a format so it does not get tagged
