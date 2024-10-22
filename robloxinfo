@@ -1,393 +1,314 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local MarketplaceService = game:GetService("MarketplaceService")
-local player = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Create GUI elements
-local ScreenGui = Instance.new("ScreenGui")
-local BlurEffect = Instance.new("BlurEffect")
-local MainFrame = Instance.new("Frame")
-local OpenButton = Instance.new("TextButton")
-local CloseButton = Instance.new("TextButton")
-local PlayerList = Instance.new("ScrollingFrame")
-local UICorner = Instance.new("UICorner")
-local ListLayout = Instance.new("UIListLayout")
-local Title = Instance.new("TextLabel")
-local SearchBar = Instance.new("TextBox")
+-- Animation configurations
+local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- Setup blur effect
-BlurEffect.Parent = game:GetService("Lighting")
-BlurEffect.Size = 0
+-- Create the toggle button
+local function createToggleButton()
+    local button = Instance.new("ImageButton")
+    button.Name = "ToggleButton"
+    button.Size = UDim2.new(0, 50, 0, 50)
+    button.Position = UDim2.new(0, 20, 0.5, -25)
+    button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    button.BorderSizePixel = 0
+    button.AutoButtonColor = true -- Enable button color change on hover
+    button.ZIndex = 10 -- Ensure button stays on top
 
--- GUI Properties
-ScreenGui.Parent = player:WaitForChild("PlayerGui")
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = button
 
--- Open Button (improved design)
-OpenButton.Parent = ScreenGui
-OpenButton.Position = UDim2.new(0.92, 0, 0.1, 0)
-OpenButton.Size = UDim2.new(0.06, 0, 0.04, 0)
-OpenButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-OpenButton.Text = "Player List"
-OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-OpenButton.Font = Enum.Font.GothamBold
-OpenButton.TextSize = 14
-OpenButton.AutoButtonColor = true
-Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(0.3, 0)
+    local icon = Instance.new("ImageLabel")
+    icon.Name = "Icon"
+    icon.Size = UDim2.new(0.6, 0, 0.6, 0)
+    icon.Position = UDim2.new(0.2, 0, 0.2, 0)
+    icon.BackgroundTransparency = 1
+    icon.Image = "rbxassetid://3926307971"
+    icon.ImageRectOffset = Vector2.new(764, 244)
+    icon.ImageRectSize = Vector2.new(36, 36)
+    icon.ZIndex = 11
+    icon.Parent = button
 
--- Add shadow to Open Button
-local OpenButtonShadow = Instance.new("ImageLabel")
-OpenButtonShadow.Parent = OpenButton
-OpenButtonShadow.AnchorPoint = Vector2.new(0.5, 0.5)
-OpenButtonShadow.BackgroundTransparency = 1
-OpenButtonShadow.Position = UDim2.new(0.5, 0, 0.5, 0)
-OpenButtonShadow.Size = UDim2.new(1.1, 0, 1.1, 0)
-OpenButtonShadow.ZIndex = -1
-OpenButtonShadow.Image = "rbxassetid://1316045217"
-OpenButtonShadow.ImageTransparency = 0.7
-OpenButtonShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-
--- Main Frame (improved design)
-MainFrame.Parent = ScreenGui
-MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
-MainFrame.Size = UDim2.new(0.5, 0, 0.7, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-MainFrame.BackgroundTransparency = 0.1
-MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-UICorner.Parent = MainFrame
-UICorner.CornerRadius = UDim.new(0.02, 0)
-
--- Add shadow to Main Frame
-local MainFrameShadow = Instance.new("ImageLabel")
-MainFrameShadow.Parent = MainFrame
-MainFrameShadow.AnchorPoint = Vector2.new(0.5, 0.5)
-MainFrameShadow.BackgroundTransparency = 1
-MainFrameShadow.Position = UDim2.new(0.5, 0, 0.5, 0)
-MainFrameShadow.Size = UDim2.new(1.02, 0, 1.02, 0)
-MainFrameShadow.ZIndex = -1
-MainFrameShadow.Image = "rbxassetid://1316045217"
-MainFrameShadow.ImageTransparency = 0.5
-MainFrameShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-
--- Title (improved design)
-Title.Parent = MainFrame
-Title.Position = UDim2.new(0, 0, 0, 0)
-Title.Size = UDim2.new(1, 0, 0.08, 0)
-Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-Title.BackgroundTransparency = 0.5
-Title.Text = "Player Information"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 20
-
--- Search Bar
-SearchBar.Parent = MainFrame
-SearchBar.Position = UDim2.new(0.025, 0, 0.1, 0)
-SearchBar.Size = UDim2.new(0.95, 0, 0.05, 0)
-SearchBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-SearchBar.TextColor3 = Color3.fromRGB(255, 255, 255)
-SearchBar.PlaceholderText = "Search players..."
-SearchBar.PlaceholderColor3 = Color3.fromRGB(180, 180, 180)
-SearchBar.Font = Enum.Font.Gotham
-SearchBar.TextSize = 14
-SearchBar.ClearTextOnFocus = false
-Instance.new("UICorner", SearchBar).CornerRadius = UDim.new(0.2, 0)
-
--- Close Button (improved design)
-CloseButton.Parent = MainFrame
-CloseButton.Position = UDim2.new(0.93, 0, 0.02, 0)
-CloseButton.Size = UDim2.new(0.05, 0, 0.04, 0)
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-CloseButton.Text = "×"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.TextSize = 20
-Instance.new("UICorner", CloseButton).CornerRadius = UDim.new(0.3, 0)
-
--- Player List (improved design)
-PlayerList.Parent = MainFrame
-PlayerList.Position = UDim2.new(0.025, 0, 0.17, 0)
-PlayerList.Size = UDim2.new(0.95, 0, 0.81, 0)
-PlayerList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-PlayerList.BackgroundTransparency = 0.5
-PlayerList.BorderSizePixel = 0
-PlayerList.ScrollBarThickness = 4
-PlayerList.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
-PlayerList.ScrollBarImageTransparency = 0.5
-Instance.new("UICorner", PlayerList).CornerRadius = UDim.new(0.02, 0)
-
--- List Layout
-ListLayout.Parent = PlayerList
-ListLayout.Padding = UDim.new(0, 8)
-ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-ListLayout.SortOrder = Enum.SortOrder.Name
-
--- Function to format date
-local function formatDate(unixTimestamp)
-    local date = os.date("*t", unixTimestamp)
-    return string.format("%d/%d/%d", date.month, date.day, date.year)
+    return button
 end
 
--- Function to convert account age
-local function convertAccountAge(days)
-    if days < 30 then
-        return days .. " days"
-    elseif days < 365 then
-        local months = math.floor(days / 30)
-        local remainingDays = days % 30
-        return months .. " months" .. (remainingDays > 0 and " " .. remainingDays .. " days" or "")
-    else
-        local years = math.floor(days / 365)
-        local remainingMonths = math.floor((days % 365) / 30)
-        return years .. " years" .. (remainingMonths > 0 and " " .. remainingMonths .. " months" or "")
-    end
-end
+-- Create the GUI
+local function createPlayerListGui()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "PlayerListGui"
+    gui.ResetOnSpawn = false
+    gui.DisplayOrder = 100 -- Ensure GUI stays on top
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Function to get player information
-local function getPlayerInfo(plr)
-    local info = {
-        Name = plr.Name,
-        DisplayName = plr.DisplayName,
-        UserId = plr.UserId,
-        AccountAge = plr.AccountAge,
-        AccountCreated = os.time() - (plr.AccountAge * 86400),
-        IsPremium = false,
-        Following = 0,
-        Followers = 0,
-        JoinDate = "",
-        LastOnline = "",
-        LocalizedLocation = "",
-    }
-    
-    -- Try to get premium status
-    local success, _ = pcall(function()
-        info.IsPremium = MarketplaceService:UserOwnsGamePassAsync(plr.UserId, 1)
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0.4, 0, 0.7, 0)
+    mainFrame.Position = UDim2.new(-0.4, 0, 0.15, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.ZIndex = 1
+    mainFrame.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0.02, 0)
+    corner.Parent = mainFrame
+
+    -- Add shadow effect
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1.02, 0, 1.02, 0)
+    shadow.Position = UDim2.new(-0.01, 0, -0.01, 0)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.5
+    shadow.ZIndex = 0
+    shadow.Parent = mainFrame
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0.08, 0)
+    titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    titleBar.BorderSizePixel = 0
+    titleBar.ZIndex = 2
+    titleBar.Parent = mainFrame
+
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0.2, 0)
+    titleCorner.Parent = titleBar
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(0.9, 0, 1, 0)
+    title.Position = UDim2.new(0.05, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "Player Information"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.ZIndex = 3
+    title.Parent = titleBar
+
+    local closeButton = Instance.new("ImageButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0.05, 0, 0.8, 0)
+    closeButton.Position = UDim2.new(0.93, 0, 0.1, 0)
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+    closeButton.Image = "rbxassetid://3926305904"
+    closeButton.ImageRectOffset = Vector2.new(284, 4)
+    closeButton.ImageRectSize = Vector2.new(24, 24)
+    closeButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.ZIndex = 3
+    closeButton.Parent = titleBar
+
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0.2, 0)
+    closeCorner.Parent = closeButton
+
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Name = "PlayerList"
+    scrollFrame.Size = UDim2.new(0.95, 0, 0.9, 0)
+    scrollFrame.Position = UDim2.new(0.025, 0, 0.09, 0)
+    scrollFrame.BackgroundTransparency = 0.9
+    scrollFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 4
+    scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
+    scrollFrame.ZIndex = 2
+    scrollFrame.Parent = mainFrame
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding = UDim.new(0, 8)
+    listLayout.Parent = scrollFrame
+
+    -- Auto-size the scroll frame content
+    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y)
     end)
-    
-    -- Try to get follow counts
-    pcall(function()
-        local followingData = game:GetService("HttpService"):JSONDecode(game:HttpGet("https://friends.roblox.com/v1/users/" .. plr.UserId .. "/followings/count"))
-        local followersData = game:GetService("HttpService"):JSONDecode(game:HttpGet("https://friends.roblox.com/v1/users/" .. plr.UserId .. "/followers/count"))
-        info.Following = followingData.count
-        info.Followers = followersData.count
-    end)
-    
-    return info
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 5)
+    padding.PaddingBottom = UDim.new(0, 5)
+    padding.Parent = scrollFrame
+
+    return gui, scrollFrame, closeButton, mainFrame
 end
 
--- Function to create player buttons
-local function createPlayerButton(plr)
-    local info = getPlayerInfo(plr)
-    
-    local PlayerButton = Instance.new("Frame")
-    PlayerButton.Size = UDim2.new(0.95, 0, 0, 120)
-    PlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    PlayerButton.BackgroundTransparency = 0.3
-    
-    -- Add corner radius and shadow
-    Instance.new("UICorner", PlayerButton).CornerRadius = UDim.new(0.05, 0)
-    
-    -- Create layout for info
-    local infoLayout = Instance.new("UIListLayout")
-    infoLayout.Parent = PlayerButton
-    infoLayout.Padding = UDim.new(0, 4)
-    infoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    infoLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-    infoLayout.FillDirection = Enum.FillDirection.Vertical
-    infoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    
-    -- Create info labels
-    local function createInfoLabel(text, order)
+-- Create player info frame
+local function createPlayerInfoFrame(player, scrollFrame)
+    local frame = Instance.new("Frame")
+    frame.Name = player.Name .. "Info"
+    frame.Size = UDim2.new(0.98, 0, 0, 120)
+    frame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 2
+    frame.Parent = scrollFrame
+
+    -- Add hover effect
+    local hover = false
+    frame.MouseEnter:Connect(function()
+        hover = true
+        TweenService:Create(frame, TWEEN_INFO, {
+            BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        }):Play()
+    end)
+
+    frame.MouseLeave:Connect(function()
+        hover = false
+        TweenService:Create(frame, TWEEN_INFO, {
+            BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        }):Play()
+    end)
+
+    -- Add rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0.1, 0)
+    corner.Parent = frame
+
+    -- Player info
+    local function createInfoLabel(text, yPos)
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.96, 0, 0, 20)
-        label.Position = UDim2.new(0.02, 0, 0, 0)
+        label.Size = UDim2.new(0.9, 0, 0.2, 0)
+        label.Position = UDim2.new(0.05, 0, yPos, 0)
         label.BackgroundTransparency = 1
         label.Text = text
-        label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.Font = Enum.Font.Gotham
+        label.TextColor3 = Color3.fromRGB(200, 200, 200)
         label.TextSize = 14
+        label.Font = Enum.Font.Gotham
         label.TextXAlignment = Enum.TextXAlignment.Left
-        label.LayoutOrder = order
-        label.Parent = PlayerButton
+        label.ZIndex = 3
+        label.Parent = frame
         return label
     end
-    
-    createInfoLabel(string.format("Name: %s (%s)", info.Name, info.DisplayName), 1)
-    createInfoLabel("UserID: " .. info.UserId, 2)
-    createInfoLabel("Account Age: " .. convertAccountAge(info.AccountAge), 3)
-    createInfoLabel("Created: " .. formatDate(info.AccountCreated), 4)
-    createInfoLabel("Premium: " .. (info.IsPremium and "Yes" or "No"), 5)
-    createInfoLabel(string.format("Following: %d | Followers: %d", info.Following, info.Followers), 6)
-    
-    -- Click functionality
-    local Button = Instance.new("TextButton")
-    Button.Parent = PlayerButton
-    Button.Size = UDim2.new(1, 0, 1, 0)
-    Button.BackgroundTransparency = 1
-    Button.Text = ""
-    
-    -- Hover animation
-    Button.MouseEnter:Connect(function()
-        TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(70, 70, 70)}):Play()
-    end)
-    
-    Button.MouseLeave:Connect(function()
-        TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
-    end)
+
+    -- Update player info
+    local function updateInfo()
+        local success, result = pcall(function()
+            local accountAge = player.AccountAge
+            local displayName = player.DisplayName
+            local userId = player.UserId
+            local membershipType = player.MembershipType
+            
+            createInfoLabel(player.Name, 0).Font = Enum.Font.GothamBold
+            createInfoLabel("Account Age: " .. accountAge .. " days", 0.25)
+            createInfoLabel("Display Name: " .. displayName, 0.5)
+            createInfoLabel("User ID: " .. userId, 0.75)
+        end)
+
+        if not success then
+            warn("Error updating player info for " .. player.Name .. ": " .. tostring(result))
+        end
+    end
+
+    updateInfo()
     
     -- Click to copy info
-    Button.MouseButton1Click:Connect(function()
-        if setclipboard then
-            local clipboardText = string.format([[
-Player Information:
-Username: %s
-Display Name: %s
-UserID: %s
-Account Age: %s
-Account Created: %s
-Premium: %s
-Following: %d
-Followers: %d
-]], info.Name, info.DisplayName, info.UserId, convertAccountAge(info.AccountAge),
-                formatDate(info.AccountCreated), info.IsPremium and "Yes" or "No",
-                info.Following, info.Followers)
-            
-            setclipboard(clipboardText)
-            
-            -- Create notification
-            local notification = Instance.new("TextLabel")
-            notification.Parent = MainFrame
-            notification.Position = UDim2.new(0.5, 0, 0.95, 0)
-            notification.AnchorPoint = Vector2.new(0.5, 1)
-            notification.Size = UDim2.new(0.4, 0, 0.06, 0)
-            notification.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
-            notification.TextColor3 = Color3.fromRGB(255, 255, 255)
-            notification.Text = "Player info copied!"
-            notification.Font = Enum.Font.Gotham
-            notification.TextSize = 14
-            Instance.new("UICorner", notification).CornerRadius = UDim.new(0.2, 0)
-            
-            -- Animate notification
-            notification.BackgroundTransparency = 1
-            notification.TextTransparency = 1
-            TweenService:Create(notification, TweenInfo.new(0.3), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
-            task.wait(2)
-            TweenService:Create(notification, TweenInfo.new(0.3), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
-            task.wait(0.3)
-            notification:Destroy()
-        end
-    end)
-    
-    PlayerButton.Parent = PlayerList
-    return PlayerButton
-end
-
--- Function to update player list
-local function updatePlayerList()
-    for _, child in ipairs(PlayerList:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-    
-    local searchText = SearchBar.Text:lower()
-    for _, plr in ipairs(Players:GetPlayers()) do
-      if searchText == "" or string.find(plr.Name:lower(), searchText) or string.find(plr.DisplayName:lower(), searchText) then
-            createPlayerButton(plr)
-        end
-    end
-    
-    -- Update canvas size with padding
-    PlayerList.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 16)
-end
-
--- Search bar functionality
-SearchBar:GetPropertyChangedSignal("Text"):Connect(updatePlayerList)
-
--- GUI animations
-local function openGUI()
-    MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
-    TweenService:Create(MainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
-    TweenService:Create(BlurEffect, TweenInfo.new(0.8), {Size = 20}):Play()
-    updatePlayerList()
-end
-
-local function closeGUI()
-    TweenService:Create(MainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, 0, 1.5, 0)}):Play()
-    TweenService:Create(BlurEffect, TweenInfo.new(0.8), {Size = 0}):Play()
-end
-
--- Button hover effects
-local function addButtonEffects(button, baseColor)
-    button.MouseEnter:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.3), {
-            BackgroundColor3 = Color3.fromRGB(
-                math.min(baseColor.R * 255 + 20, 255),
-                math.min(baseColor.G * 255 + 20, 255),
-                math.min(baseColor.B * 255 + 20, 255)
-            )
-        }):Play()
-    end)
-    
-    button.MouseLeave:Connect(function()
-        TweenService:Create(button, TweenInfo.new(0.3), {
-            BackgroundColor3 = baseColor
-        }):Play()
-    end)
-end
-
--- Add hover effects to buttons
-addButtonEffects(OpenButton, Color3.fromRGB(45, 45, 45))
-addButtonEffects(CloseButton, Color3.fromRGB(255, 80, 80))
-
--- Button connections
-OpenButton.MouseButton1Click:Connect(openGUI)
-CloseButton.MouseButton1Click:Connect(closeGUI)
-
--- Player events
-Players.PlayerAdded:Connect(updatePlayerList)
-Players.PlayerRemoving:Connect(updatePlayerList)
-
--- Initial setup
-updatePlayerList()
-
--- Add drag functionality to MainFrame
-local UserInputService = game:GetService("UserInputService")
-local dragging
-local dragInput
-local dragStart
-local startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    TweenService:Create(MainFrame, TweenInfo.new(0.1), {
-        Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    }):Play()
-end
-
-Title.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
+    local clickDebounce = false
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if not clickDebounce then
+                clickDebounce = true
+                local success, result = pcall(function()
+                    setclipboard(string.format(
+                        "Name: %s\nDisplay Name: %s\nAccount Age: %d days\nUser ID: %d",
+                        player.Name,
+                        player.DisplayName,
+                        player.AccountAge,
+                        player.UserId
+                    ))
+                end)
+                wait(0.5) -- Debounce time
+                clickDebounce = false
             end
-        end)
-    end
-end)
+        end
+    end)
 
-Title.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
+    return frame
+end
 
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
+-- Main initialization function
+local function initialize()
+    -- Clean up existing GUI
+    local existingGui = PlayerGui:FindFirstChild("PlayerListGui")
+    if existingGui then
+        existingGui:Destroy()
     end
-end) first of all improve the UI it's very cluttered second do you mind also getting the height and width snd other body properties of the player copied aswell lastly do you mind copying it in a format so it does not get tagged
+
+    local button = createToggleButton()
+    local gui, scrollFrame, closeButton, mainFrame = createPlayerListGui()
+    
+    -- Parent the GUI elements
+    gui.Parent = PlayerGui
+    button.Parent = gui
+
+    -- Toggle functionality
+    local function toggleGui(show)
+        local targetPosition = show and UDim2.new(0.5, -mainFrame.Size.X.Offset / 2, 0.15, 0) or UDim2.new(-0.4, 0, 0.15, 0)
+        TweenService:Create(mainFrame, TWEEN_INFO, {
+            Position = targetPosition
+        }):Play()
+    end
+
+    button.MouseButton1Click:Connect(function()
+        toggleGui(mainFrame.Position.X.Scale < 0)
+    end)
+
+    closeButton.MouseButton1Click:Connect(function()
+        toggleGui(false)
+    end)
+
+    -- Initialize player list
+    for _, player in ipairs(Players:GetPlayers()) do
+        createPlayerInfoFrame(player, scrollFrame)
+    end
+
+    -- Handle player joining/leaving
+    Players.PlayerAdded:Connect(function(player)
+        createPlayerInfoFrame(player, scrollFrame)
+    end)
+
+    Players.PlayerRemoving:Connect(function(player)
+        local frame = scrollFrame:FindFirstChild(player.Name .. "Info")
+        if frame then
+            frame:Destroy()
+        end
+    end)
+
+    -- Make GUI draggable
+    local dragging = false
+    local dragStart
+    local startPos
+
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- Start the GUI
+initialize()
