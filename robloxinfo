@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
+local replicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Create GUI elements
 local ScreenGui = Instance.new("ScreenGui")
@@ -13,267 +14,225 @@ local UICorner = Instance.new("UICorner")
 local ListLayout = Instance.new("UIListLayout")
 local Title = Instance.new("TextLabel")
 
--- Create DetailPanel for showing friend/follower information
-local DetailPanel = Instance.new("Frame")
-DetailPanel.Name = "DetailPanel"
-DetailPanel.Parent = MainFrame
-DetailPanel.Position = UDim2.new(1.02, 0, 0, 0)
-DetailPanel.Size = UDim2.new(0.6, 0, 1, 0)
-DetailPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-DetailPanel.BackgroundTransparency = 0.1
-DetailPanel.Visible = false
-Instance.new("UICorner", DetailPanel).CornerRadius = UDim.new(0.02, 0)
+-- Setup blur effect
+BlurEffect.Parent = game:GetService("Lighting")
+BlurEffect.Size = 0
 
--- Detail Panel Title
-local DetailTitle = Instance.new("TextLabel")
-DetailTitle.Parent = DetailPanel
-DetailTitle.Position = UDim2.new(0, 0, 0, 0)
-DetailTitle.Size = UDim2.new(1, 0, 0.1, 0)
-DetailTitle.BackgroundTransparency = 1
-DetailTitle.Text = "Player Details"
-DetailTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-DetailTitle.Font = Enum.Font.GothamBold
-DetailTitle.TextSize = 18
+-- GUI Properties
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Create tabs for different information types
-local TabButtons = Instance.new("Frame")
-TabButtons.Parent = DetailPanel
-TabButtons.Position = UDim2.new(0.05, 0, 0.12, 0)
-TabButtons.Size = UDim2.new(0.9, 0, 0.08, 0)
-TabButtons.BackgroundTransparency = 1
+-- Open Button
+OpenButton.Parent = ScreenGui
+OpenButton.Position = UDim2.new(0.9, 0, 0.1, 0)
+OpenButton.Size = UDim2.new(0.08, 0, 0.05, 0)
+OpenButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+OpenButton.Text = "Open"
+OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenButton.Font = Enum.Font.GothamBold
+OpenButton.TextSize = 14
+OpenButton.AutoButtonColor = true
+Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(0.2, 0)
 
-local function createTab(name, position)
-    local tab = Instance.new("TextButton")
-    tab.Parent = TabButtons
-    tab.Position = position
-    tab.Size = UDim2.new(0.3, 0, 1, 0)
-    tab.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    tab.Text = name
-    tab.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tab.Font = Enum.Font.GothamBold
-    tab.TextSize = 14
-    Instance.new("UICorner", tab).CornerRadius = UDim.new(0.2, 0)
-    return tab
+-- Main Frame
+MainFrame.Parent = ScreenGui
+MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
+MainFrame.Size = UDim2.new(0.4, 0, 0.6, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+UICorner.Parent = MainFrame
+UICorner.CornerRadius = UDim.new(0.02, 0)
+
+-- Title
+Title.Parent = MainFrame
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.Size = UDim2.new(1, 0, 0.1, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Player List"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+
+-- Close Button
+CloseButton.Parent = MainFrame
+CloseButton.Position = UDim2.new(0.9, 0, 0.02, 0)
+CloseButton.Size = UDim2.new(0.08, 0, 0.06, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 14
+CloseButton.AutoButtonColor = true
+Instance.new("UICorner", CloseButton).CornerRadius = UDim.new(0.2, 0)
+
+-- Player List
+PlayerList.Parent = MainFrame
+PlayerList.Position = UDim2.new(0.025, 0, 0.12, 0)
+PlayerList.Size = UDim2.new(0.95, 0, 0.85, 0)
+PlayerList.BackgroundTransparency = 0.9
+PlayerList.BorderSizePixel = 0
+PlayerList.ScrollBarThickness = 6
+Instance.new("UICorner", PlayerList).CornerRadius = UDim.new(0.02, 0)
+
+-- List Layout
+ListLayout.Parent = PlayerList
+ListLayout.Padding = UDim.new(0, 5)
+ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+ListLayout.SortOrder = Enum.SortOrder.Name
+
+-- Function to convert days to appropriate time units
+local function convertAccountAge(days)
+    if days < 30 then
+        return days .. " days"
+    elseif days < 365 then
+        local months = math.floor(days / 30)
+        local remainingDays = days % 30
+        return months .. " months" .. (remainingDays > 0 and " " .. remainingDays .. " days" or "")
+    else
+        local years = math.floor(days / 365)
+        local remainingMonths = math.floor((days % 365) / 30)
+        return years .. " years" .. (remainingMonths > 0 and " " .. remainingMonths .. " months" or "")
+    end
 end
 
-local FriendsTab = createTab("Friends", UDim2.new(0, 0, 0, 0))
-local FollowersTab = createTab("Followers", UDim2.new(0.35, 0, 0, 0))
-local FollowingTab = createTab("Following", UDim2.new(0.7, 0, 0, 0))
-
--- Create content frame for tab information
-local ContentFrame = Instance.new("ScrollingFrame")
-ContentFrame.Parent = DetailPanel
-ContentFrame.Position = UDim2.new(0.05, 0, 0.22, 0)
-ContentFrame.Size = UDim2.new(0.9, 0, 0.75, 0)
-ContentFrame.BackgroundTransparency = 0.9
-ContentFrame.BorderSizePixel = 0
-ContentFrame.ScrollBarThickness = 6
-Instance.new("UICorner", ContentFrame).CornerRadius = UDim.new(0.02, 0)
-
-local ContentListLayout = Instance.new("UIListLayout")
-ContentListLayout.Parent = ContentFrame
-ContentListLayout.Padding = UDim.new(0, 5)
-ContentListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-ContentListLayout.SortOrder = Enum.SortOrder.Name
-
--- Function to create a user entry in the content frame
-local function createUserEntry(username, displayName, thumbnail)
-    local entry = Instance.new("Frame")
-    entry.Size = UDim2.new(0.95, 0, 0, 60)
-    entry.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    entry.BackgroundTransparency = 0.3
-
-    local userImage = Instance.new("ImageLabel")
-    userImage.Parent = entry
-    userImage.Position = UDim2.new(0.02, 0, 0.1, 0)
-    userImage.Size = UDim2.new(0, 40, 0, 40)
-    userImage.BackgroundTransparency = 1
-    userImage.Image = thumbnail or "rbxasset://textures/ui/GuiImagePlaceholder.png"
-    Instance.new("UICorner", userImage).CornerRadius = UDim.new(1, 0)
-
-    local userName = Instance.new("TextLabel")
-    userName.Parent = entry
-    userName.Position = UDim2.new(0.15, 0, 0.1, 0)
-    userName.Size = UDim2.new(0.8, 0, 0.4, 0)
-    userName.BackgroundTransparency = 1
-    userName.Text = username
-    userName.TextColor3 = Color3.fromRGB(255, 255, 255)
-    userName.Font = Enum.Font.GothamBold
-    userName.TextSize = 14
-    userName.TextXAlignment = Enum.TextXAlignment.Left
-
-    local displayNameLabel = Instance.new("TextLabel")
-    displayNameLabel.Parent = entry
-    displayNameLabel.Position = UDim2.new(0.15, 0, 0.5, 0)
-    displayNameLabel.Size = UDim2.new(0.8, 0, 0.4, 0)
-    displayNameLabel.BackgroundTransparency = 1
-    displayNameLabel.Text = displayName
-    displayNameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    displayNameLabel.Font = Enum.Font.Gotham
-    displayNameLabel.TextSize = 12
-    displayNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    Instance.new("UICorner", entry).CornerRadius = UDim.new(0.1, 0)
-    entry.Parent = ContentFrame
-    return entry
-end
-
--- Function to get user thumbnail
-local function getUserThumbnail(userId)
-    local success, result = pcall(function()
-        return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-    end)
-    return success and result or nil
-end
-
--- Function to get friends list
-local function getFriendsList(userId)
-    local friends = {}
-    local success, page = pcall(function()
-        return Players:GetFriendsAsync(userId)
-    end)
+-- Function to calculate join date based on account age
+local function calculateJoinDate(accountAge)
+    local joinDate = os.date("*t") -- Get current date
+    joinDate.year = joinDate.year - math.floor(accountAge / 365)
+    joinDate.month = joinDate.month - ((accountAge % 365) // 30) -- Get the remaining months
+    joinDate.day = joinDate.day -- Keep the day as is (may need adjustments)
     
-    if success then
-        while true do
-            for _, item in ipairs(page:GetCurrentPage()) do
-                table.insert(friends, {
-                    username = item.Username,
-                    displayName = item.DisplayName,
-                    userId = item.Id
-                })
-            end
-            
-            if page.IsFinished then
-                break
-            end
-            page:AdvanceToNextPageAsync()
-        end
+    -- Adjust the month and day if needed
+    if joinDate.month <= 0 then
+        joinDate.year = joinDate.year - 1
+        joinDate.month = 12 + joinDate.month
     end
     
-    return friends
+    return os.date("%Y-%m-%d", os.time(joinDate))
 end
 
--- Function to get followers/following
-local function getFollowList(userId, listType)
-    local users = {}
-    local success, page = pcall(function()
-        if listType == "followers" then
-            return game:GetService("UserService"):GetUserFollowersAsync(userId)
-        else
-            return game:GetService("UserService"):GetUserFollowingAsync(userId)
-        end
+-- Function to get player avatar information
+local function getPlayerAvatarImageUrl(playerId)
+    return "https://www.roblox.com/headshot-thumbnail/image?userId=" .. playerId .. "&width=420&height=420&format=png"
+end
+
+-- Function to create player buttons with dynamic sizing
+local function createPlayerButton(plr)
+    local PlayerButton = Instance.new("Frame")
+    PlayerButton.Size = UDim2.new(0.95, 0, 0, 50)
+    PlayerButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    PlayerButton.BackgroundTransparency = 0.3
+    
+    local PlayerName = Instance.new("TextLabel")
+    PlayerName.Parent = PlayerButton
+    PlayerName.Position = UDim2.new(0.02, 0, 0, 0)
+    PlayerName.Size = UDim2.new(0.96, 0, 0.5, 0)
+    PlayerName.BackgroundTransparency = 1
+    PlayerName.Text = plr.Name
+    PlayerName.TextColor3 = Color3.fromRGB(255, 255, 255)
+    PlayerName.Font = Enum.Font.GothamBold
+    PlayerName.TextSize = 14
+    PlayerName.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local AccountAge = Instance.new("TextLabel")
+    AccountAge.Parent = PlayerButton
+    AccountAge.Position = UDim2.new(0.02, 0, 0.5, 0)
+    AccountAge.Size = UDim2.new(0.96, 0, 0.5, 0)
+    AccountAge.BackgroundTransparency = 1
+    AccountAge.Text = "Account Age: " .. convertAccountAge(plr.AccountAge)
+    AccountAge.TextColor3 = Color3.fromRGB(200, 200, 200)
+    AccountAge.Font = Enum.Font.Gotham
+    AccountAge.TextSize = 12
+    AccountAge.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Add corner radius
+    Instance.new("UICorner", PlayerButton).CornerRadius = UDim.new(0.1, 0)
+    
+    -- Make entire frame clickable
+    local Button = Instance.new("TextButton")
+    Button.Parent = PlayerButton
+    Button.Size = UDim2.new(1, 0, 1, 0)
+    Button.BackgroundTransparency = 1
+    Button.Text = ""
+    
+    -- Hover animation
+    Button.MouseEnter:Connect(function()
+        TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(80, 80, 80)}):Play()
     end)
     
-    if success then
-        while true do
-            for _, item in ipairs(page:GetCurrentPage()) do
-                table.insert(users, {
-                    username = item.Username,
-                    displayName = item.DisplayName,
-                    userId = item.Id
-                })
-            end
-            
-            if page.IsFinished then
-                break
-            end
-            page:AdvanceToNextPageAsync()
-        end
-    end
+    Button.MouseLeave:Connect(function()
+        TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
+    end)
     
-    return users
+    -- Click functionality
+    Button.MouseButton1Click:Connect(function()
+        local userId = plr.UserId
+        local displayName = plr.DisplayName
+        local joinedDate = calculateJoinDate(plr.AccountAge)
+        local premium = plr.MembershipType == Enum.MembershipType.Premium and "Yes" or "No"
+        local avatarImageUrl = getPlayerAvatarImageUrl(userId)
+
+        local infoToCopy = string.format(
+            "Username: %s\nUser ID: %s\nDisplay Name: %s\nAccount Age: %s\nPremium: %s\nJoin Date: %s\nAvatar Image URL: %s",
+            plr.Name, userId, displayName, convertAccountAge(plr.AccountAge), premium, joinedDate, avatarImageUrl
+        )
+        
+        setclipboard(infoToCopy)
+
+        -- Create notification
+        local notification = Instance.new("TextLabel")
+        notification.Parent = ScreenGui
+        notification.Size = UDim2.new(0.5, 0, 0.1, 0)
+        notification.Position = UDim2.new(0.5, 0, 0.5, 0)
+        notification.AnchorPoint = Vector2.new(0.5, 0.5)
+        notification.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        notification.TextColor3 = Color3.fromRGB(0, 0, 0)
+        notification.Font = Enum.Font.GothamBold
+        notification.TextSize = 14
+        notification.Text = "Copied player info to clipboard!"
+        notification.BackgroundTransparency = 0.5
+        notification.BorderSizePixel = 0
+        
+        -- Fade out notification
+        TweenService:Create(notification, TweenInfo.new(1), {BackgroundTransparency = 1}):Play()
+        wait(1)
+        notification:Destroy()
+    end)
+    
+    PlayerButton.Parent = PlayerList
 end
 
--- Function to update content frame
-local function updateContentFrame(userId, listType)
-    -- Clear existing content
-    for _, child in ipairs(ContentFrame:GetChildren()) do
+-- Function to update player list
+local function updatePlayerList()
+    for _, child in ipairs(PlayerList:GetChildren()) do
         if child:IsA("Frame") then
             child:Destroy()
         end
     end
     
-    -- Get appropriate list based on type
-    local userList
-    if listType == "friends" then
-        userList = getFriendsList(userId)
-    elseif listType == "followers" then
-        userList = getFollowList(userId, "followers")
-    else
-        userList = getFollowList(userId, "following")
+    for _, plr in ipairs(Players:GetPlayers()) do
+        createPlayerButton(plr)
     end
-    
-    -- Create entries for each user
-    for _, userData in ipairs(userList) do
-        local thumbnail = getUserThumbnail(userData.userId)
-        createUserEntry(userData.username, userData.displayName, thumbnail)
-    end
-    
-    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, ContentListLayout.AbsoluteContentSize.Y + 10)
 end
 
--- Tab button connections
-local function setupTabButton(button, listType)
-    button.MouseButton1Click:Connect(function()
-        local selectedPlayer = DetailPanel:GetAttribute("SelectedPlayer")
-        if selectedPlayer then
-            updateContentFrame(selectedPlayer, listType)
-            
-            -- Update tab appearances
-            for _, tab in ipairs(TabButtons:GetChildren()) do
-                if tab:IsA("TextButton") then
-                    tab.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-                end
-            end
-            button.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-        end
-    end)
-end
+-- Open and close button functionality
+OpenButton.MouseButton1Click:Connect(function()
+    MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    BlurEffect.Size = 24
+    updatePlayerList()
+end)
 
-setupTabButton(FriendsTab, "friends")
-setupTabButton(FollowersTab, "followers")
-setupTabButton(FollowingTab, "following")
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
+    BlurEffect.Size = 0
+end)
 
--- Modify the existing player button click handler
-local function onPlayerButtonClick(plr)
-    DetailPanel:SetAttribute("SelectedPlayer", plr.UserId)
-    DetailTitle.Text = plr.Name .. "'s Details"
-    
-    -- Show detail panel with animation
-    DetailPanel.Position = UDim2.new(1.02, 0, 0, 0)
-    DetailPanel.Visible = true
-    TweenService:Create(DetailPanel, TweenInfo.new(0.5), {Position = UDim2.new(1, 0, 0, 0)}):Play()
-    
-    -- Trigger friends tab by default
-    FriendsTab:Fire()
-end
+-- Handle mobile touches
+OpenButton.MouseButton1Down:Connect(OpenButton.MouseButton1Click)
+CloseButton.MouseButton1Down:Connect(CloseButton.MouseButton1Click)
 
--- Update the createPlayerButton function to include the new click handler
-local function createPlayerButton(plr)
-    -- [Previous createPlayerButton code remains the same until the Button.MouseButton1Click connection]
-    
-    Button.MouseButton1Click:Connect(function()
-        onPlayerButtonClick(plr)
-    end)
-end
-
--- Update the closeGUI function to also hide the detail panel
-local function closeGUI()
-    TweenService:Create(MainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, 0, 1.5, 0)}):Play()
-    TweenService:Create(BlurEffect, TweenInfo.new(0.8), {Size = 0}):Play()
-    TweenService:Create(DetailPanel, TweenInfo.new(0.5), {Position = UDim2.new(1.02, 0, 0, 0)}):Play()
-    wait(0.5)
-    DetailPanel.Visible = false
-end
-
--- [Rest of the original code remains the same]
--- Button connections
-OpenButton.MouseButton1Click:Connect(openGUI)
-CloseButton.MouseButton1Click:Connect(closeGUI)
-
--- Player events
+-- Update player list when a player joins or leaves
 Players.PlayerAdded:Connect(updatePlayerList)
 Players.PlayerRemoving:Connect(updatePlayerList)
-
--- Initial setup
-updatePlayerList()
