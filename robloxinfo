@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 
 -- Create GUI elements
@@ -13,6 +14,9 @@ local UICorner = Instance.new("UICorner")
 local ListLayout = Instance.new("UIListLayout")
 local Title = Instance.new("TextLabel")
 
+-- Mobile detection
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
 -- Setup blur effect
 BlurEffect.Parent = game:GetService("Lighting")
 BlurEffect.Size = 0
@@ -22,119 +26,257 @@ ScreenGui.Parent = player:WaitForChild("PlayerGui")
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
+-- Adjust sizes based on device
+local function getDeviceSpecificProperties()
+    if isMobile then
+        return {
+            openButtonSize = UDim2.new(0.15, 0, 0.08, 0),
+            mainFrameSize = UDim2.new(0.9, 0, 0.7, 0),
+            buttonTextSize = 18,
+            titleTextSize = 24,
+            playerButtonHeight = 70,
+            playerNameTextSize = 18,
+            accountAgeTextSize = 16
+        }
+    else
+        return {
+            openButtonSize = UDim2.new(0.08, 0, 0.05, 0),
+            mainFrameSize = UDim2.new(0.4, 0, 0.6, 0),
+            buttonTextSize = 14,
+            titleTextSize = 18,
+            playerButtonHeight = 50,
+            playerNameTextSize = 14,
+            accountAgeTextSize = 12
+        }
+    end
+end
+
+local deviceProps = getDeviceSpecificProperties()
+
 -- Open Button
 OpenButton.Parent = ScreenGui
 OpenButton.Position = UDim2.new(0.9, 0, 0.1, 0)
-OpenButton.Size = UDim2.new(0.08, 0, 0.05, 0)
+OpenButton.Size = deviceProps.openButtonSize
 OpenButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-OpenButton.Text = "Open"
+OpenButton.Text = "Players"
 OpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 OpenButton.Font = Enum.Font.GothamBold
-OpenButton.TextSize = 14
+OpenButton.TextSize = deviceProps.buttonTextSize
 OpenButton.AutoButtonColor = true
 Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(0.2, 0)
 
 -- Main Frame
 MainFrame.Parent = ScreenGui
 MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
-MainFrame.Size = UDim2.new(0.4, 0, 0.6, 0)
+MainFrame.Size = deviceProps.mainFrameSize
 MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 UICorner.Parent = MainFrame
 UICorner.CornerRadius = UDim.new(0.02, 0)
 
--- Title
-Title.Parent = MainFrame
-Title.Position = UDim2.new(0, 0, 0, 0)
-Title.Size = UDim2.new(1, 0, 0.1, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "Player List"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 18
+-- Add drag functionality
+local function enableDragging(frame)
+    local dragging
+    local dragInput
+    local dragStart
+    local startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or
+            input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or
+            input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+end
+
+enableDragging(MainFrame)
+
+-- Title with search functionality
+local SearchBox = Instance.new("TextBox")
+SearchBox.Parent = MainFrame
+SearchBox.Position = UDim2.new(0.025, 0, 0.02, 0)
+SearchBox.Size = UDim2.new(0.7, 0, 0.08, 0)
+SearchBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SearchBox.PlaceholderText = "Search players..."
+SearchBox.Text = ""
+SearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchBox.PlaceholderColor3 = Color3.fromRGB(180, 180, 180)
+SearchBox.Font = Enum.Font.Gotham
+SearchBox.TextSize = deviceProps.buttonTextSize
+Instance.new("UICorner", SearchBox).CornerRadius = UDim.new(0.2, 0)
 
 -- Close Button
 CloseButton.Parent = MainFrame
 CloseButton.Position = UDim2.new(0.9, 0, 0.02, 0)
-CloseButton.Size = UDim2.new(0.08, 0, 0.06, 0)
+CloseButton.Size = UDim2.new(0.08, 0, 0.08, 0)
 CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
 CloseButton.Text = "X"
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.Font = Enum.Font.GothamBold
-CloseButton.TextSize = 14
+CloseButton.TextSize = deviceProps.buttonTextSize
 CloseButton.AutoButtonColor = true
 Instance.new("UICorner", CloseButton).CornerRadius = UDim.new(0.2, 0)
 
--- Player List
+-- Player List with enhanced scrolling
 PlayerList.Parent = MainFrame
 PlayerList.Position = UDim2.new(0.025, 0, 0.12, 0)
 PlayerList.Size = UDim2.new(0.95, 0, 0.85, 0)
 PlayerList.BackgroundTransparency = 0.9
 PlayerList.BorderSizePixel = 0
-PlayerList.ScrollBarThickness = 6
-PlayerList.CanvasSize = UDim2.new(0, 0, 0, 0) -- Initialize CanvasSize
+PlayerList.ScrollBarThickness = isMobile and 8 or 6
+PlayerList.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
+PlayerList.ScrollingEnabled = true
+PlayerList.ElasticBehavior = Enum.ElasticBehavior.Always
+PlayerList.ScrollingDirection = Enum.ScrollingDirection.Y
+PlayerList.CanvasSize = UDim2.new(0, 0, 0, 0)
 Instance.new("UICorner", PlayerList).CornerRadius = UDim.new(0.02, 0)
 
--- List Layout
+-- List Layout with auto-sizing
 ListLayout.Parent = PlayerList
 ListLayout.Padding = UDim.new(0, 5)
 ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.SortOrder = Enum.SortOrder.Name
 
--- Function to convert days to appropriate time units
+-- Auto-update canvas size
+ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    PlayerList.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- Enhanced time conversion function
 local function convertAccountAge(days)
-    if days < 30 then
-        return days .. " days"
+    if days < 1 then
+        return "Today"
+    elseif days < 30 then
+        return days .. " day" .. (days == 1 and "" or "s")
     elseif days < 365 then
         local months = math.floor(days / 30)
         local remainingDays = days % 30
-        return months .. " months" .. (remainingDays > 0 and " " .. remainingDays .. " days" or "")
+        return months .. " month" .. (months == 1 and "" or "s") ..
+            (remainingDays > 0 and " " .. remainingDays .. " day" .. (remainingDays == 1 and "" or "s") or "")
     else
         local years = math.floor(days / 365)
         local remainingMonths = math.floor((days % 365) / 30)
-        return years .. " years" .. (remainingMonths > 0 and " " .. remainingMonths .. " months" or "")
+        return years .. " year" .. (years == 1 and "" or "s") ..
+            (remainingMonths > 0 and " " .. remainingMonths .. " month" .. (remainingMonths == 1 and "" or "s") or "")
     end
 end
 
--- Function to create player buttons with dynamic sizing
+-- Create notification function
+local function createNotification(message, color)
+    local notification = Instance.new("Frame")
+    notification.Size = UDim2.new(0, 200, 0, 50)
+    notification.Position = UDim2.new(0.5, -100, 0.8, 0)
+    notification.BackgroundColor3 = color or Color3.fromRGB(40, 200, 40)
+    notification.BackgroundTransparency = 0.2
+    Instance.new("UICorner", notification).CornerRadius = UDim.new(0.2, 0)
+    
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.BackgroundTransparency = 1
+    text.Text = message
+    text.TextColor3 = Color3.fromRGB(255, 255, 255)
+    text.Font = Enum.Font.GothamBold
+    text.TextSize = deviceProps.buttonTextSize
+    text.Parent = notification
+    
+    notification.Parent = ScreenGui
+    
+    -- Animate in
+    notification.Position = UDim2.new(0.5, -100, 1.1, 0)
+    TweenService:Create(notification, TweenInfo.new(0.5), {Position = UDim2.new(0.5, -100, 0.8, 0)}):Play()
+    
+    -- Animate out
+    wait(2)
+    TweenService:Create(notification, TweenInfo.new(0.5), {Position = UDim2.new(0.5, -100, 1.1, 0)}):Play()
+    wait(0.5)
+    notification:Destroy()
+end
+
+-- Enhanced player button creation
 local function createPlayerButton(plr)
     local PlayerButton = Instance.new("Frame")
-    PlayerButton.Size = UDim2.new(0.95, 0, 0, 50)
+    PlayerButton.Size = UDim2.new(0.95, 0, 0, deviceProps.playerButtonHeight)
     PlayerButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     PlayerButton.BackgroundTransparency = 0.3
+    PlayerButton.Name = plr.Name
     Instance.new("UICorner", PlayerButton).CornerRadius = UDim.new(0.1, 0)
+
+    -- Avatar image (if available)
+    local success, userId = pcall(function() return plr.UserId end)
+    if success and userId > 0 then
+        local AvatarImage = Instance.new("ImageLabel")
+        AvatarImage.Size = UDim2.new(0.1, 0, 0.8, 0)
+        AvatarImage.Position = UDim2.new(0.02, 0, 0.1, 0)
+        AvatarImage.BackgroundTransparency = 1
+        AvatarImage.Image = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+        AvatarImage.Parent = PlayerButton
+        Instance.new("UICorner", AvatarImage).CornerRadius = UDim.new(1, 0)
+    end
 
     local PlayerName = Instance.new("TextLabel")
     PlayerName.Parent = PlayerButton
-    PlayerName.Position = UDim2.new(0.02, 0, 0, 0)
+    PlayerName.Position = UDim2.new(0.15, 0, 0, 0)
     PlayerName.Size = UDim2.new(0.8, 0, 0.5, 0)
     PlayerName.BackgroundTransparency = 1
-    PlayerName.Text = plr.Name
+    PlayerName.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
     PlayerName.TextColor3 = Color3.fromRGB(255, 255, 255)
     PlayerName.Font = Enum.Font.GothamBold
-    PlayerName.TextSize = 14
+    PlayerName.TextSize = deviceProps.playerNameTextSize
     PlayerName.TextXAlignment = Enum.TextXAlignment.Left
 
-    local AccountAge = Instance.new("TextLabel")
-    AccountAge.Parent = PlayerButton
-    AccountAge.Position = UDim2.new(0.02, 0, 0.5, 0)
-    AccountAge.Size = UDim2.new(0.96, 0, 0.5, 0)
-    AccountAge.BackgroundTransparency = 1
-    AccountAge.Text = "Account Age: " .. convertAccountAge(plr.AccountAge)
-    AccountAge.TextColor3 = Color3.fromRGB(200, 200, 200)
-    AccountAge.Font = Enum.Font.Gotham
-    AccountAge.TextSize = 12
-    AccountAge.TextXAlignment = Enum.TextXAlignment.Left
+    local AccountInfo = Instance.new("TextLabel")
+    AccountInfo.Parent = PlayerButton
+    AccountInfo.Position = UDim2.new(0.15, 0, 0.5, 0)
+    AccountInfo.Size = UDim2.new(0.8, 0, 0.5, 0)
+    AccountInfo.BackgroundTransparency = 1
+    AccountInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+    AccountInfo.Font = Enum.Font.Gotham
+    AccountInfo.TextSize = deviceProps.accountAgeTextSize
+    AccountInfo.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Add click functionality
+    -- Update account info
+    local function updateAccountInfo()
+        local premium = (plr.MembershipType == Enum.MembershipType.Premium) and "⭐ Premium" or ""
+        AccountInfo.Text = convertAccountAge(plr.AccountAge) .. " old " .. premium
+    end
+    updateAccountInfo()
+
+    -- Click functionality
     local Button = Instance.new("TextButton")
     Button.Parent = PlayerButton
     Button.Size = UDim2.new(1, 0, 1, 0)
     Button.BackgroundTransparency = 1
     Button.Text = ""
 
-    -- Hover animation
+    -- Hover and click animations
     Button.MouseEnter:Connect(function()
         TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(80, 80, 80)}):Play()
     end)
@@ -143,43 +285,143 @@ local function createPlayerButton(plr)
         TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
     end)
 
-    -- Click functionality to copy player info
+    -- Enhanced click functionality
     Button.MouseButton1Click:Connect(function()
-        local userId = plr.UserId
-        local localId = userId -- Using UserId as local ID
+        local success, userId = pcall(function() return plr.UserId end)
+        if not success then return end
+
+        -- Gather player info
         local premium = (plr.MembershipType == Enum.MembershipType.Premium) and "Yes" or "No"
-        local robuxBalance = plr:GetAttribute("Robux") or 0 -- Placeholder for actual Robux, you might need to implement your logic
-        local accountAge = convertAccountAge(plr.AccountAge)
+        local friendCount = 0
+        pcall(function() friendCount = #plr:GetFriends() end)
 
-        -- Additional player attributes (you can expand as needed)
-        local dataToCopy = string.format("Username: %s\nDisplayName: %s\nUserId: %d\nLocalId: %d\nRobux: %d\nPremium: %s\nAccountAge: %s\nFriendsCount: %d",
-            plr.Name, plr.DisplayName, userId, localId, robuxBalance, premium, accountAge, #plr:GetFriends())
+        local info = {
+            ["Display Name"] = plr.DisplayName,
+            ["Username"] = plr.Name,
+            ["User ID"] = userId,
+            ["Account Age"] = convertAccountAge(plr.AccountAge),
+            ["Premium"] = premium,
+            ["Friends"] = friendCount,
+            ["Join Date"] = os.date("%Y-%m-%d", os.time() - (plr.AccountAge * 86400))
+        }
 
-        -- Copy data to clipboard
-        if setclipboard then
-            pcall(function()
-                setclipboard(dataToCopy)
-            end)
-
-            -- Create notification
-            local notification = Instance.new("TextLabel")
-            notification.Size = UDim2.new(0, 200, 0, 50)
-            notification.Position = UDim2.new(0.5, -100, 0.5, -25)
-            notification.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
-            notification.Text = "Player info copied!"
-            notification.TextColor3 = Color3.fromRGB(255, 255, 255)
-            notification.Font = Enum.Font.GothamBold
-            notification.TextSize = 14
-            notification.Parent = ScreenGui
-            wait(2)
-            notification:Destroy()
+        -- Format info for clipboard
+        local dataToCopy = ""
+        for label, value in pairs(info) do
+            dataToCopy = dataToCopy .. label .. ": " .. tostring(value) .. "\n"
         end
+
+        -- Copy to clipboard with enhanced mobile support
+        local function copyToClipboard()
+            if setclipboard then
+                pcall(function()
+                    setclipboard(dataToCopy)
+                    createNotification("Player info copied!", Color3.fromRGB(40, 200, 40))
+                end)
+            else
+                -- Mobile copy fallback
+                local CopyFrame = Instance.new("Frame")
+                CopyFrame.Size = UDim2.new(0.8, 0, 0.6, 0)
+                CopyFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+                CopyFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+                CopyFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                CopyFrame.Parent = ScreenGui
+                Instance.new("UICorner", CopyFrame).CornerRadius = UDim.new(0.02, 0)
+
+                local CopyText = Instance.new("TextBox")
+                CopyText.Size = UDim2.new(0.9, 0, 0.8, 0)
+                CopyText.Position = UDim2.new(0.05, 0, 0.05, 0)
+                CopyText.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                CopyText.TextColor3 = Color3.fromRGB(255, 255, 255)
+                CopyText.TextSize = deviceProps.buttonTextSize
+                CopyText.Font = Enum.Font.Gotham
+                CopyText.Text = dataToCopy
+                CopyText.MultiLine = true
+                CopyText.TextXAlignment = Enum.TextXAlignment.Left
+                CopyText.TextYAlignment = Enum.TextYAlignment.Top
+                CopyText.ClearTextOnFocus = false
+                CopyText.Parent = CopyFrame
+                Instance.new("UICorner", CopyText).CornerRadius = UDim.new(0.02, 0)
+
+                local ClosePopup = Instance.new("TextButton")
+                ClosePopup.Size = UDim2.new(0.9, 0, 0.1, 0)
+                ClosePopup.Position = UDim2.new(0.05, 0, 0.87, 0)
+                ClosePopup.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+                ClosePopup.Text = "Close"
+                ClosePopup.TextColor3 = Color3.fromRGB(255, 255, 255)
+                ClosePopup.Font = Enum.Font.GothamBold
+                ClosePopup.TextSize = deviceProps.buttonTextSize
+                ClosePopup.Parent = CopyFrame
+                Instance.new("UICorner", ClosePopup).CornerRadius = UDim.new(0.2, 0)
+
+                -- Select all text for easy copying
+                CopyText.Focused:Connect(function()
+                    CopyText.SelectionStart = 1
+                    CopyText.CursorPosition = #CopyText.Text + 1
+                end)
+
+                ClosePopup.MouseButton1Click:Connect(function()
+                    CopyFrame:Destroy()
+                end)
+
+                createNotification("Long press to copy!", Color3.fromRGB(40, 200, 40))
+            end
+        end
+
+        copyToClipboard()
     end)
 
     PlayerButton.Parent = PlayerList
+    return PlayerButton
 end
 
--- Open and close functionality
+-- Search functionality
+local function updateSearch()
+    local searchText = SearchBox.Text:lower()
+    for _, button in ipairs(PlayerList:GetChildren()) do
+        if button:IsA("Frame") then
+            if searchText == "" then
+                button.Visible = true
+            else
+                local playerName = button.Name:lower()
+                local displayName = button:FindFirstChild("TextLabel") and 
+                    button:FindFirstChild("TextLabel").Text:lower() or ""
+                button.Visible = playerName:find(searchText) or displayName:find(searchText)
+            end
+        end
+    end
+end
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(updateSearch)
+
+-- Refresh player list function
+local function refreshPlayerList()
+    for _, child in ipairs(PlayerList:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    for _, plr in ipairs(Players:GetPlayers()) do
+        createPlayerButton(plr)
+    end
+end
+
+-- Connect refresh button
+local RefreshButton = Instance.new("TextButton")
+RefreshButton.Size = UDim2.new(0.08, 0, 0.08, 0)
+RefreshButton.Position = UDim2.new(0.8, 0, 0.02, 0)
+RefreshButton.BackgroundColor3 = Color3.fromRGB(60, 120, 60)
+RefreshButton.Text = "↻"
+RefreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+RefreshButton.Font = Enum.Font.GothamBold
+RefreshButton.TextSize = deviceProps.buttonTextSize
+RefreshButton.Parent = MainFrame
+Instance.new("UICorner", RefreshButton).CornerRadius = UDim.new(0.2, 0)
+
+RefreshButton.MouseButton1Click:Connect(refreshPlayerList)
+
+-- Open and close animations
 OpenButton.MouseButton1Click:Connect(function()
     TweenService:Create(MainFrame, TweenInfo.new(0.3), {Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
     TweenService:Create(BlurEffect, TweenInfo.new(0.3), {Size = 24}):Play()
@@ -190,19 +432,17 @@ CloseButton.MouseButton1Click:Connect(function()
     TweenService:Create(BlurEffect, TweenInfo.new(0.3), {Size = 0}):Play()
 end)
 
--- Populate Player List with actual players in the game
-for _, plr in ipairs(Players:GetPlayers()) do
-    createPlayerButton(plr)
-end
+-- Initial population
+refreshPlayerList()
 
--- Update player list when a player joins or leaves
+-- Player join/leave handling
 Players.PlayerAdded:Connect(function(plr)
     createPlayerButton(plr)
 end)
 
 Players.PlayerRemoving:Connect(function(plr)
     for _, button in ipairs(PlayerList:GetChildren()) do
-        if button:IsA("Frame") and button:FindFirstChild("TextLabel") and button.TextLabel.Text == plr.Name then
+        if button:IsA("Frame") and button.Name == plr.Name then
             button:Destroy()
             break
         end
