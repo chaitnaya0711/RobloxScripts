@@ -73,13 +73,14 @@ PlayerList.Size = UDim2.new(0.95, 0, 0.85, 0)
 PlayerList.BackgroundTransparency = 0.9
 PlayerList.BorderSizePixel = 0
 PlayerList.ScrollBarThickness = 6
+PlayerList.CanvasSize = UDim2.new(0, 0, 0, 0) -- Initialize CanvasSize
 Instance.new("UICorner", PlayerList).CornerRadius = UDim.new(0.02, 0)
 
 -- List Layout
 ListLayout.Parent = PlayerList
 ListLayout.Padding = UDim.new(0, 5)
 ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-ListLayout.SortOrder = Enum.SortOrder.Name
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 -- Function to convert days to appropriate time units
 local function convertAccountAge(days)
@@ -103,7 +104,7 @@ local function createPlayerButton(plr)
     PlayerButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     PlayerButton.BackgroundTransparency = 0.3
     Instance.new("UICorner", PlayerButton).CornerRadius = UDim.new(0.1, 0)
-    
+
     local PlayerName = Instance.new("TextLabel")
     PlayerName.Parent = PlayerButton
     PlayerName.Position = UDim2.new(0.02, 0, 0, 0)
@@ -142,38 +143,35 @@ local function createPlayerButton(plr)
         TweenService:Create(PlayerButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
     end)
 
-    -- Click functionality
+    -- Click functionality to copy player info
     Button.MouseButton1Click:Connect(function()
-        local accountValue = plr:GetAttribute("AccountValue") or 0
         local userId = plr.UserId
-        local localId = plr.LocalId
-        local premium = Players:GetUserPremium(plr.UserId) and "Yes" or "No"
-        
-        local dataToCopy = string.format("Username: %s\nDisplayName: %s\nUserId: %d\nLocalId: %d\nAccountValue: %d\nPremium: %s\nAccountAge: %s", 
-                                           plr.Name, plr.DisplayName, userId, localId, accountValue, premium, convertAccountAge(plr.AccountAge))
+        local localId = userId -- Using UserId as local ID
+        local premium = (plr.MembershipType == Enum.MembershipType.Premium) and "Yes" or "No"
+        local robuxBalance = plr:GetAttribute("Robux") or 0 -- Placeholder for actual Robux, you might need to implement your logic
+        local accountAge = convertAccountAge(plr.AccountAge)
 
+        -- Additional player attributes (you can expand as needed)
+        local dataToCopy = string.format("Username: %s\nDisplayName: %s\nUserId: %d\nLocalId: %d\nRobux: %d\nPremium: %s\nAccountAge: %s\nFriendsCount: %d",
+            plr.Name, plr.DisplayName, userId, localId, robuxBalance, premium, accountAge, #plr:GetFriends())
+
+        -- Copy data to clipboard
         if setclipboard then
-            setclipboard(dataToCopy)
+            pcall(function()
+                setclipboard(dataToCopy)
+            end)
+
             -- Create notification
             local notification = Instance.new("TextLabel")
-            notification.Parent = MainFrame
-            notification.Position = UDim2.new(0.5, 0, 0.9, 0)
-            notification.AnchorPoint = Vector2.new(0.5, 1)
-            notification.Size = UDim2.new(0.4, 0, 0.06, 0)
-            notification.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
+            notification.Size = UDim2.new(0, 200, 0, 50)
+            notification.Position = UDim2.new(0.5, -100, 0.5, -25)
+            notification.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
+            notification.Text = "Player info copied!"
             notification.TextColor3 = Color3.fromRGB(255, 255, 255)
-            notification.Text = "Player information copied!"
-            notification.Font = Enum.Font.Gotham
+            notification.Font = Enum.Font.GothamBold
             notification.TextSize = 14
-            Instance.new("UICorner", notification).CornerRadius = UDim.new(0.2, 0)
-
-            -- Animate notification
-            notification.BackgroundTransparency = 1
-            notification.TextTransparency = 1
-            TweenService:Create(notification, TweenInfo.new(0.3), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
-            task.wait(2)
-            TweenService:Create(notification, TweenInfo.new(0.3), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
-            task.wait(0.3)
+            notification.Parent = ScreenGui
+            wait(2)
             notification:Destroy()
         end
     end)
@@ -181,40 +179,31 @@ local function createPlayerButton(plr)
     PlayerButton.Parent = PlayerList
 end
 
--- Button Events
+-- Open and close functionality
 OpenButton.MouseButton1Click:Connect(function()
-    TweenService:Create(MainFrame, TweenInfo.new(0.5), {Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
-    TweenService:Create(BlurEffect, TweenInfo.new(0.5), {Size = 24}):Play()
-    -- Populate player list
-    for _, plr in pairs(Players:GetPlayers()) do
-        createPlayerButton(plr)
-    end
+    TweenService:Create(MainFrame, TweenInfo.new(0.3), {Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
+    TweenService:Create(BlurEffect, TweenInfo.new(0.3), {Size = 24}):Play()
 end)
 
 CloseButton.MouseButton1Click:Connect(function()
-    TweenService:Create(MainFrame, TweenInfo.new(0.5), {Position = UDim2.new(0.5, 0, 1.5, 0)}):Play()
-    TweenService:Create(BlurEffect, TweenInfo.new(0.5), {Size = 0}):Play()
+    TweenService:Create(MainFrame, TweenInfo.new(0.3), {Position = UDim2.new(0.5, 0, 1.5, 0)}):Play()
+    TweenService:Create(BlurEffect, TweenInfo.new(0.3), {Size = 0}):Play()
 end)
 
--- Clean up on GUI close
-CloseButton.MouseButton1Click:Connect(function()
-    for _, v in ipairs(PlayerList:GetChildren()) do
-        if v:IsA("Frame") then
-            v:Destroy()
-        end
-    end
-end)
+-- Populate Player List with actual players in the game
+for _, plr in ipairs(Players:GetPlayers()) do
+    createPlayerButton(plr)
+end
 
--- Update Player List on PlayerAdded
+-- Update player list when a player joins or leaves
 Players.PlayerAdded:Connect(function(plr)
     createPlayerButton(plr)
 end)
 
--- Update Player List on PlayerRemoving
 Players.PlayerRemoving:Connect(function(plr)
-    for _, v in ipairs(PlayerList:GetChildren()) do
-        if v:IsA("Frame") and v:FindFirstChild("TextLabel").Text == plr.Name then
-            v:Destroy()
+    for _, button in ipairs(PlayerList:GetChildren()) do
+        if button:IsA("Frame") and button:FindFirstChild("TextLabel") and button.TextLabel.Text == plr.Name then
+            button:Destroy()
             break
         end
     end
