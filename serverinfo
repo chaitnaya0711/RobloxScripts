@@ -7,26 +7,18 @@ local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
 local Lighting = game:GetService("Lighting")
 
--- Utility Functions
-local function formatNumber(number)
-    return tostring(number):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
-end
-
-local function formatTime(seconds)
-    local days = math.floor(seconds / 86400)
-    local hours = math.floor((seconds % 86400) / 3600)
-    local minutes = math.floor((seconds % 3600) / 60)
-    local secs = math.floor(seconds % 60)
-    return string.format("%dd %02dh %02dm %02ds", days, hours, minutes, secs)
-end
-
 -- Create the ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ServerInfoGUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Create the main frame with a sleek design
+-- Create the main frame with a blur effect
+local BlurEffect = Instance.new("BlurEffect")
+BlurEffect.Size = 10
+BlurEffect.Parent = Lighting
+
+-- Create the main frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 600, 0, 700)
@@ -35,12 +27,317 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
--- Add smooth dragging
+-- Add gradient background
+local UIGradient = Instance.new("UIGradient")
+UIGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 45)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 30))
+})
+UIGradient.Rotation = 45
+UIGradient.Parent = MainFrame
+
+-- Add shadow effect
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name = "Shadow"
+Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+Shadow.BackgroundTransparency = 1
+Shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+Shadow.Size = UDim2.new(1, 40, 1, 40)
+Shadow.Image = "rbxassetid://7912134082"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.6
+Shadow.Parent = MainFrame
+
+-- Enhanced rounded corners
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 15)
+UICorner.Parent = MainFrame
+
+-- Create title bar with gradient
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleGradient = Instance.new("UIGradient")
+TitleGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 55)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 40, 45))
+})
+TitleGradient.Parent = TitleBar
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 15)
+TitleCorner.Parent = TitleBar
+
+-- Create title text with icon
+local TitleIcon = Instance.new("ImageLabel")
+TitleIcon.Size = UDim2.new(0, 20, 0, 20)
+TitleIcon.Position = UDim2.new(0, 15, 0, 10)
+TitleIcon.BackgroundTransparency = 1
+TitleIcon.Image = "rbxassetid://7733960981" -- Server icon
+TitleIcon.Parent = TitleBar
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Name = "TitleText"
+TitleText.Size = UDim2.new(1, -80, 1, 0)
+TitleText.Position = UDim2.new(0, 45, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "Server Information Dashboard"
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.TextSize = 20
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TitleBar
+
+-- Enhanced close button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 75, 75)
+CloseButton.Text = "×"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 24
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = TitleBar
+
+-- Add hover effect for close button
+local closeOriginalColor = CloseButton.BackgroundColor3
+CloseButton.MouseEnter:Connect(function()
+    TweenService:Create(CloseButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(255, 95, 95)}):Play()
+end)
+CloseButton.MouseLeave:Connect(function()
+    TweenService:Create(CloseButton, TweenInfo.new(0.3), {BackgroundColor3 = closeOriginalColor}):Play()
+end)
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseButton
+
+-- Create enhanced scroll frame
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Name = "ScrollFrame"
+ScrollFrame.Size = UDim2.new(1, -40, 1, -60)
+ScrollFrame.Position = UDim2.new(0, 20, 0, 50)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 8
+ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+ScrollFrame.Parent = MainFrame
+
+-- Function to create section headers
+local function createSectionHeader(text, yPos)
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 30)
+    header.Position = UDim2.new(0, 0, 0, yPos)
+    header.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    header.BorderSizePixel = 0
+    
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 8)
+    headerCorner.Parent = header
+    
+    local headerText = Instance.new("TextLabel")
+    headerText.Size = UDim2.new(1, -20, 1, 0)
+    headerText.Position = UDim2.new(0, 10, 0, 0)
+    headerText.BackgroundTransparency = 1
+    headerText.Text = text
+    headerText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    headerText.TextSize = 16
+    headerText.Font = Enum.Font.GothamBold
+    headerText.TextXAlignment = Enum.TextXAlignment.Left
+    headerText.Parent = header
+    
+    return header
+end
+
+-- Enhanced info label creation
+local function createInfoLabel(text, yPos)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 25)
+    label.Position = UDim2.new(0, 0, 0, yPos)
+    label.BackgroundTransparency = 0.95
+    label.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextWrapped = true
+    
+    local labelCorner = Instance.new("UICorner")
+    labelCorner.CornerRadius = UDim.new(0, 6)
+    labelCorner.Parent = label
+    
+    -- Add hover effect
+    label.MouseEnter:Connect(function()
+        TweenService:Create(label, TweenInfo.new(0.3), {BackgroundTransparency = 0.9}):Play()
+    end)
+    label.MouseLeave:Connect(function()
+        TweenService:Create(label, TweenInfo.new(0.3), {BackgroundTransparency = 0.95}):Play()
+    end)
+    
+    return label
+end
+
+-- Enhanced number formatting
+local function formatNumber(number)
+    local formatted = tostring(number):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    return formatted
+end
+
+-- Enhanced server information update
+local function updateServerInfo()
+    ScrollFrame:ClearAllChildren()
+    local yOffset = 0
+    
+    -- Section headers and info
+    local sections = {
+        {
+            title = "Basic Server Information",
+            info = {
+                "Game ID: " .. game.GameId,
+                "Place ID: " .. game.PlaceId,
+                "Place Version: " .. game.PlaceVersion,
+                "Server Job ID: " .. game.JobId,
+                "Game Name: " .. game.Name,
+            }
+        },
+        {
+            title = "Server Statistics",
+            info = {
+                "Server Uptime: " .. string.format("%.2f", workspace.DistributedGameTime) .. " seconds",
+                "Total Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers,
+                "Data Received: " .. formatNumber(Stats.DataReceiveKbps) .. " Kb/s",
+                "Data Sent: " .. formatNumber(Stats.DataSendKbps) .. " Kb/s",
+            }
+        },
+        {
+            title = "Performance Metrics",
+            info = {
+                "Memory Usage: " .. string.format("%.2f", Stats:GetTotalMemoryUsageMb()) .. " MB",
+                "Instance Count: " .. formatNumber(Stats.InstanceCount),
+                "Primitive Count: " .. formatNumber(Stats.PrimitivesCount),
+            }
+        },
+        {
+            title = "Environment Settings",
+            info = {
+                "Gravity: " .. Workspace.Gravity,
+                "Streaming Enabled: " .. tostring(Workspace.StreamingEnabled),
+                "Time of Day: " .. Lighting.TimeOfDay,
+                "Global Shadows: " .. tostring(Lighting.GlobalShadows),
+            }
+        }
+    }
+    
+    -- Create sections with spacing
+    for _, section in ipairs(sections) do
+        local header = createSectionHeader(section.title, yOffset)
+        header.Parent = ScrollFrame
+        yOffset = yOffset + 40
+        
+        for _, info in ipairs(section.info) do
+            local label = createInfoLabel(info, yOffset)
+            label.Parent = ScrollFrame
+            yOffset = yOffset + 30
+        end
+        
+        yOffset = yOffset + 20 -- Add spacing between sections
+    end
+    
+    -- Add player section
+    local playerHeader = createSectionHeader("Connected Players", yOffset)
+    playerHeader.Parent = ScrollFrame
+    yOffset = yOffset + 40
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        local playerInfo = {
+            "Player Name: " .. player.Name,
+            "User ID: " .. player.UserId,
+            "Account Age: " .. player.AccountAge .. " days",
+            "Premium: " .. tostring(player.MembershipType == Enum.MembershipType.Premium)
+        }
+        
+        for _, info in ipairs(playerInfo) do
+            local label = createInfoLabel(info, yOffset)
+            label.Parent = ScrollFrame
+            yOffset = yOffset + 30
+        end
+        yOffset = yOffset + 10
+    end
+    
+    -- Update ScrollingFrame canvas size
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
+end
+
+-- Create enhanced toggle button
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Size = UDim2.new(0, 140, 0, 40)
+ToggleButton.Position = UDim2.new(0, 20, 0, 20)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 125, 200)
+ToggleButton.Text = "Server Info"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 16
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Parent = ScreenGui
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 10)
+ToggleCorner.Parent = ToggleButton
+
+-- Add toggle button effects
+local toggleOriginalColor = ToggleButton.BackgroundColor3
+ToggleButton.MouseEnter:Connect(function()
+    TweenService:Create(ToggleButton, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(65, 145, 220)}):Play()
+end)
+ToggleButton.MouseLeave:Connect(function()
+    TweenService:Create(ToggleButton, TweenInfo.new(0.3), {BackgroundColor3 = toggleOriginalColor}):Play()
+end)
+
+-- Add animations for showing/hiding the main frame
+local function showMainFrame()
+    MainFrame.Visible = true
+    BlurEffect.Enabled = true
+    MainFrame.Position = UDim2.new(0.5, -300, 0, -700)
+    TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+        Position = UDim2.new(0.5, -300, 0.5, -350)
+    }):Play()
+end
+
+local function hideMainFrame()
+    BlurEffect.Enabled = false
+    TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+        Position = UDim2.new(0.5, -300, 0, -700)
+    }):Play()
+    wait(0.5)
+    MainFrame.Visible = false
+end
+-- Connect button functionality
+ToggleButton.MouseButton1Click:Connect(function()
+    if MainFrame.Visible then
+        hideMainFrame()
+    else
+        updateServerInfo()
+        showMainFrame()
+    end
+end)
+
+-- Close button functionality
+CloseButton.MouseButton1Click:Connect(function()
+    hideMainFrame()
+end)
+
+-- Make the window draggable
 local isDragging = false
 local dragStart = nil
 local startPos = nil
 
-MainFrame.InputBegan:Connect(function(input)
+TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         isDragging = true
         dragStart = input.Position
@@ -48,7 +345,13 @@ MainFrame.InputBegan:Connect(function(input)
     end
 end)
 
-MainFrame.InputChanged:Connect(function(input)
+TitleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+TitleBar.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
         local delta = input.Position - dragStart
         MainFrame.Position = UDim2.new(
@@ -60,349 +363,26 @@ MainFrame.InputChanged:Connect(function(input)
     end
 end)
 
-MainFrame.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDragging = false
-    end
-end)
-
--- Add rounded corners and shadow effect
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
-UICorner.Parent = MainFrame
-
-local Shadow = Instance.new("ImageLabel")
-Shadow.Name = "Shadow"
-Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-Shadow.BackgroundTransparency = 1
-Shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
-Shadow.Size = UDim2.new(1, 30, 1, 30)
-Shadow.ZIndex = -1
-Shadow.Image = "rbxassetid://5554236805"
-Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-Shadow.ImageTransparency = 0.6
-Shadow.Parent = MainFrame
-
--- Create modern title bar
-local TitleBar = Instance.new("Frame")
-TitleBar.Name = "TitleBar"
-TitleBar.Size = UDim2.new(1, 0, 0, 40)
-TitleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 12)
-TitleCorner.Parent = TitleBar
-
--- Create tabs container
-local TabsContainer = Instance.new("Frame")
-TabsContainer.Name = "TabsContainer"
-TabsContainer.Size = UDim2.new(1, -40, 0, 40)
-TabsContainer.Position = UDim2.new(0, 20, 0, 50)
-TabsContainer.BackgroundTransparency = 1
-TabsContainer.Parent = MainFrame
-
-local TabsLayout = Instance.new("UIListLayout")
-TabsLayout.FillDirection = Enum.FillDirection.Horizontal
-TabsLayout.Padding = UDim.new(0, 10)
-TabsLayout.Parent = TabsContainer
-
--- Create content frames
-local ContentContainer = Instance.new("Frame")
-ContentContainer.Name = "ContentContainer"
-ContentContainer.Size = UDim2.new(1, -40, 1, -100)
-ContentContainer.Position = UDim2.new(0, 20, 0, 100)
-ContentContainer.BackgroundTransparency = 1
-ContentContainer.Parent = MainFrame
-
--- Function to create a tab button
-local function createTab(name, icon)
-    local TabButton = Instance.new("TextButton")
-    TabButton.Name = name .. "Tab"
-    TabButton.Size = UDim2.new(0, 120, 1, 0)
-    TabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-    TabButton.Text = name
-    TabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    TabButton.TextSize = 14
-    TabButton.Font = Enum.Font.GothamSemibold
-    
-    local TabCorner = Instance.new("UICorner")
-    TabCorner.CornerRadius = UDim.new(0, 8)
-    TabCorner.Parent = TabButton
-    
-    local IconImage = Instance.new("ImageLabel")
-    IconImage.Size = UDim2.new(0, 16, 0, 16)
-    IconImage.Position = UDim2.new(0, 10, 0.5, -8)
-    IconImage.BackgroundTransparency = 1
-    IconImage.Image = icon
-    IconImage.Parent = TabButton
-    
-    TabButton.Parent = TabsContainer
-    return TabButton
-end
-
--- Create content frames for each tab
-local function createContentFrame(name)
-    local Frame = Instance.new("ScrollingFrame")
-    Frame.Name = name .. "Content"
-    Frame.Size = UDim2.new(1, 0, 1, 0)
-    Frame.BackgroundTransparency = 1
-    Frame.BorderSizePixel = 0
-    Frame.ScrollBarThickness = 4
-    Frame.Visible = false
-    Frame.Parent = ContentContainer
-    
-    local PaddingFrame = Instance.new("Frame")
-    PaddingFrame.Name = "PaddingFrame"
-    PaddingFrame.Size = UDim2.new(1, -8, 1, 0)
-    PaddingFrame.BackgroundTransparency = 1
-    PaddingFrame.Parent = Frame
-    
-    local ListLayout = Instance.new("UIListLayout")
-    ListLayout.Padding = UDim.new(0, 10)
-    ListLayout.Parent = PaddingFrame
-    
-    return Frame
-end
-
--- Create metric card
-local function createMetricCard(parent, title, value)
-    local Card = Instance.new("Frame")
-    Card.Size = UDim2.new(1, 0, 0, 80)
-    Card.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-    
-    local CardCorner = Instance.new("UICorner")
-    CardCorner.CornerRadius = UDim.new(0, 8)
-    CardCorner.Parent = Card
-    
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Size = UDim2.new(1, -20, 0, 20)
-    TitleLabel.Position = UDim2.new(0, 10, 0, 10)
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = title
-    TitleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    TitleLabel.TextSize = 14
-    TitleLabel.Font = Enum.Font.GothamSemibold
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TitleLabel.Parent = Card
-    
-    local ValueLabel = Instance.new("TextLabel")
-    ValueLabel.Size = UDim2.new(1, -20, 0, 30)
-    ValueLabel.Position = UDim2.new(0, 10, 0, 40)
-    ValueLabel.BackgroundTransparency = 1
-    ValueLabel.Text = value
-    ValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ValueLabel.TextSize = 20
-    ValueLabel.Font = Enum.Font.GothamBold
-    ValueLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ValueLabel.Name = "ValueLabel"
-    ValueLabel.Parent = Card
-    
-    Card.Parent = parent
-    return Card
-end
-
--- Create tabs and content
-local tabs = {
-    {name = "Overview", icon = "rbxassetid://3926305904"},
-    {name = "Players", icon = "rbxassetid://3926307971"},
-    {name = "Performance", icon = "rbxassetid://3926305904"},
-    {name = "Environment", icon = "rbxassetid://3926307971"}
-}
-
-local contentFrames = {}
-for _, tab in ipairs(tabs) do
-    local tabButton = createTab(tab.name, tab.icon)
-    local contentFrame = createContentFrame(tab.name)
-    contentFrames[tab.name] = contentFrame
-    
-    tabButton.MouseButton1Click:Connect(function()
-        for _, frame in pairs(contentFrames) do
-            frame.Visible = false
-        end
-        contentFrame.Visible = true
-        
-        -- Update tab appearance
-        for _, otherTab in ipairs(TabsContainer:GetChildren()) do
-            if otherTab:IsA("TextButton") then
-                otherTab.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-                otherTab.TextColor3 = Color3.fromRGB(200, 200, 200)
-            end
-        end
-        tabButton.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
-        tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end)
-end
-
--- Function to update server information
-local function updateServerInfo()
-    -- Update Overview tab
-    local overviewFrame = contentFrames.Overview.PaddingFrame
-    overviewFrame:ClearAllChildren()
-    
-    createMetricCard(overviewFrame, "Server Uptime", formatTime(workspace.DistributedGameTime))
-    createMetricCard(overviewFrame, "Total Players", #Players:GetPlayers() .. "/" .. Players.MaxPlayers)
-    createMetricCard(overviewFrame, "Place Version", tostring(game.PlaceVersion))
-    createMetricCard(overviewFrame, "Server Job ID", game.JobId)
-    
-    -- Update Performance tab
-    local performanceFrame = contentFrames.Performance.PaddingFrame
-    performanceFrame:ClearAllChildren()
-    
-    createMetricCard(performanceFrame, "Memory Usage", string.format("%.2f MB", Stats:GetTotalMemoryUsageMb()))
-    createMetricCard(performanceFrame, "Data Received", formatNumber(Stats.DataReceiveKbps) .. " Kb/s")
-    createMetricCard(performanceFrame, "Data Sent", formatNumber(Stats.DataSendKbps) .. " Kb/s")
-    createMetricCard(performanceFrame, "Instance Count", formatNumber(Stats.InstanceCount))
-    
-    -- Update Players tab
-    local playersFrame = contentFrames.Players.PaddingFrame
-    playersFrame:ClearAllChildren()
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        local playerCard = Instance.new("Frame")
-        playerCard.Size = UDim2.new(1, 0, 0, 100)
-        playerCard.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-        
-        local playerCorner = Instance.new("UICorner")
-        playerCorner.CornerRadius = UDim.new(0, 8)
-        playerCorner.Parent = playerCard
-        
-        local avatar = Instance.new("ImageLabel")
-        avatar.Size = UDim2.new(0, 60, 0, 60)
-        avatar.Position = UDim2.new(0, 20, 0, 20)
-        avatar.BackgroundTransparency = 1
-        avatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
-        avatar.Parent = playerCard
-        
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, -100, 0, 20)
-        nameLabel.Position = UDim2.new(0, 90, 0, 20)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = player.Name
-        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nameLabel.TextSize = 16
-        nameLabel.Font = Enum.Font.GothamBold
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.Parent = playerCard
-        
-        local infoLabel = Instance.new("TextLabel")
-        infoLabel.Size = UDim2.new(1, -100, 0, 20)
-        infoLabel.Position = UDim2.new(0, 90, 0, 45)
-        infoLabel.BackgroundTransparency = 1
-        infoLabel.Text = string.format("Account Age: %d days | Premium: %s", 
-            player.AccountAge,
-            tostring(player.MembershipType == Enum.MembershipType.Premium))
-        infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        infoLabel.TextSize = 14
-        infoLabel.Font = Enum.Font.Gotham
-        infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-        infoLabel.Parent = playerCard
-        
-        playerCard.Parent = playersFrame
-    end
-    
-    -- Update Environment tab
-    local environmentFrame = contentFrames.Environment.PaddingFrame
-    environmentFrame:ClearAllChildren()
-    
-    createMetricCard(environmentFrame, "Gravity", tostring(Workspace.Gravity))
-    createMetricCard(environmentFrame, "Time of Day", Lighting.TimeOfDay)
-    createMetricCard(environmentFrame, "Brightness", tostring(Lighting.Brightness))
-    createMetricCard(environmentFrame, "Technology", tostring(Lighting.Technology))
-end
-
--- Create close button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(1, -35, 0, 5)
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 95, 95)
-CloseButton.Text = "×"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.TextSize = 24
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.Parent = TitleBar
-
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 8)
-CloseCorner.Parent = CloseButton
-
--- Create title text
-local TitleText = Instance.new("TextLabel")
-TitleText.Size = UDim2.new(1, -80, 1, 0)
-TitleText.Position = UDim2.new(0, 15, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.Text = "Server Information"
-TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleText.TextSize = 18
-TitleText.Font = Enum.Font.GothamBold
-TitleText.TextXAlignment = Enum.TextXAlignment.Left
-TitleText.Parent = TitleBar
-
--- Create toggle button
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Name = "ToggleButton"
-ToggleButton.Size = UDim2.new(0, 140, 0, 40)
-ToggleButton.Position = UDim2.new(0, 20, 0, 20)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
-ToggleButton.Text = "Server Info"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 16
-ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.Parent = ScreenGui
-ToggleButton.AutoButtonColor = false
-
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 8)
-ToggleCorner.Parent = ToggleButton
-
--- Add hover effect to toggle button
-ToggleButton.MouseEnter:Connect(function()
-    TweenService:Create(ToggleButton, TweenInfo.new(0.3), {
-        BackgroundColor3 = Color3.fromRGB(85, 125, 245)
-    }):Play()
-end)
-
-ToggleButton.MouseLeave:Connect(function()
-    TweenService:Create(ToggleButton, TweenInfo.new(0.3), {
-        BackgroundColor3 = Color3.fromRGB(65, 105, 225)
-    }):Play()
-end)
-
--- Close button functionality
-CloseButton.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
-end)
-
--- Toggle button functionality
-ToggleButton.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
-    if MainFrame.Visible then
-        updateServerInfo()
-        -- Show first tab by default
-        local firstTab = TabsContainer:FindFirstChild(tabs[1].name .. "Tab")
-        if firstTab then
-            firstTab:Fire("MouseButton1Click")
-        end
-    end
-end)
-
--- Initialize the GUI
-MainFrame.Visible = false
-updateServerInfo()
-
--- Update server info periodically when visible
+-- Update info every second when visible
 RunService.Heartbeat:Connect(function()
-    if MainFrame.Visible then
+    if MainFrame.Visible and tick() % 1 < 0.1 then
         updateServerInfo()
     end
 end)
 
 -- Handle player events
-Players.PlayerAdded:Connect(function()
-    updateServerInfo()
+Players.PlayerRemoving:Connect(function(player)
+    if MainFrame.Visible then
+        updateServerInfo()
+    end
 end)
 
-Players.PlayerRemoving:Connect(function()
-    updateServerInfo()
+Players.PlayerAdded:Connect(function(player)
+    if MainFrame.Visible then
+        updateServerInfo()
+    end
 end)
+
+-- Initialize the GUI
+MainFrame.Visible = false
+BlurEffect.Enabled = false
