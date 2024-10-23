@@ -1,0 +1,205 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Stats = game:GetService("Stats")
+local Workspace = game:GetService("Workspace")
+local PhysicsService = game:GetService("PhysicsService")
+local Lighting = game:GetService("Lighting")
+
+-- Create the ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ServerInfoGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- Create the main frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 500, 0, 600)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -300)
+MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+-- Add rounded corners
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+-- Create title bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = TitleBar
+
+-- Create title text
+local TitleText = Instance.new("TextLabel")
+TitleText.Name = "TitleText"
+TitleText.Size = UDim2.new(1, -30, 1, 0)
+TitleText.Position = UDim2.new(0, 10, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "Detailed Server Information"
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.TextSize = 18
+TitleText.Font = Enum.Font.SourceSansBold
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TitleBar
+
+-- Create close button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 20, 0, 20)
+CloseButton.Position = UDim2.new(1, -25, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 75, 75)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 14
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 5)
+CloseCorner.Parent = CloseButton
+
+-- Create scroll frame
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Name = "ScrollFrame"
+ScrollFrame.Size = UDim2.new(1, -20, 1, -40)
+ScrollFrame.Position = UDim2.new(0, 10, 0, 35)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.Parent = MainFrame
+
+-- Function to create info labels
+local function createInfoLabel(text, yPos)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.Position = UDim2.new(0, 0, 0, yPos)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 14
+    label.Font = Enum.Font.SourceSans
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextWrapped = true
+    return label
+end
+
+-- Function to format numbers with commas
+local function formatNumber(number)
+    return tostring(number):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+end
+
+-- Function to update server information
+local function updateServerInfo()
+    ScrollFrame:ClearAllChildren()
+    local yOffset = 0
+    
+    -- Basic Server Information
+    local info = {
+        "=== BASIC SERVER INFORMATION ===",
+        "Game ID: " .. game.GameId,
+        "Place ID: " .. game.PlaceId,
+        "Place Version: " .. game.PlaceVersion,
+        "Server Job ID: " .. game.JobId,
+        "Game Name: " .. game.Name,
+        "Creator ID: " .. game.CreatorId,
+        "Creator Type: " .. game.CreatorType.Name,
+        
+        "\n=== SERVER STATISTICS ===",
+        "Server Uptime: " .. string.format("%.2f", workspace.DistributedGameTime) .. " seconds",
+        "Total Player Count: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers,
+        
+        "\n=== PERFORMANCE METRICS ===",
+        "Data Received: " .. formatNumber(Stats.DataReceiveKbps) .. " Kb/s",
+        "Data Sent: " .. formatNumber(Stats.DataSendKbps) .. " Kb/s",
+        "Memory Usage: " .. string.format("%.2f", Stats:GetTotalMemoryUsageMb()) .. " MB",
+        "Instance Count: " .. formatNumber(Stats.InstanceCount),
+        "Primitive Count: " .. formatNumber(Stats.PrimitivesCount),
+        
+        "\n=== WORKSPACE PROPERTIES ===",
+        "Gravity: " .. Workspace.Gravity,
+        "StreamingEnabled: " .. tostring(Workspace.StreamingEnabled),
+        
+        "\n=== LIGHTING PROPERTIES ===",
+        "Technology: " .. tostring(Lighting.Technology),
+        "Ambient: " .. tostring(Lighting.Ambient),
+        "Brightness: " .. Lighting.Brightness,
+        "GlobalShadows: " .. tostring(Lighting.GlobalShadows),
+        "TimeOfDay: " .. Lighting.TimeOfDay,
+        
+        "\n=== ADDITIONAL PROPERTIES ===",
+        "Workspace.AllowThirdPartySales: " .. tostring(Workspace.AllowThirdPartySales),
+        
+        "\n=== PLAYER SPECIFIC INFORMATION ===",
+    }
+    
+    -- Add player information to the list
+    for _, player in ipairs(Players:GetPlayers()) do
+        table.insert(info, "Player Name: " .. player.Name)
+        table.insert(info, "User ID: " .. player.UserId)
+        table.insert(info, "Account Age: " .. player.AccountAge .. " days")
+        table.insert(info, "Is Premium: " .. tostring(player.MembershipType == Enum.MembershipType.Premium))
+        table.insert(info, "===");
+    end
+
+    -- Create labels for all information
+    for _, text in ipairs(info) do
+        local label = createInfoLabel(text, yOffset)
+        label.Parent = ScrollFrame
+        yOffset = yOffset + 25
+    end
+    
+    -- Update ScrollingFrame canvas size
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+end
+
+-- Create toggle button
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Size = UDim2.new(0, 120, 0, 30)
+ToggleButton.Position = UDim2.new(0.5, -60, 0, 10)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+ToggleButton.Text = "Show Server Info"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 14
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Parent = ScreenGui
+
+ToggleButton.MouseButton1Click:Connect(function()
+    updateServerInfo()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- Close button functionality
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+end)
+
+-- Ensure the GUI updates on a regular interval
+RunService.Heartbeat:Connect(function()
+    if MainFrame.Visible then
+        updateServerInfo()
+    end
+end)
+
+-- Initialize the GUI
+MainFrame.Visible = false
+
+-- Handle player leaving
+Players.PlayerRemoving:Connect(function(player)
+    updateServerInfo()
+end)
+
+-- Handle new player joining
+Players.PlayerAdded:Connect(function(player)
+    updateServerInfo()
+end)
