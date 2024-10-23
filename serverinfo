@@ -7,176 +7,366 @@ local Workspace = game:GetService("Workspace")
 local PhysicsService = game:GetService("PhysicsService")
 local Lighting = game:GetService("Lighting")
 
+-- Utility Functions
+local function formatNumber(number)
+    return tostring(number):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+end
+
+local function formatTime(seconds)
+    local days = math.floor(seconds / 86400)
+    local hours = math.floor((seconds % 86400) / 3600)
+    local minutes = math.floor((seconds % 3600) / 60)
+    local secs = math.floor(seconds % 60)
+    return string.format("%dd %02dh %02dm %02ds", days, hours, minutes, secs)
+end
+
 -- Create the ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ServerInfoGUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Create the main frame
+-- Create the main frame with a sleek design
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 500, 0, 600)
-MainFrame.Position = UDim2.new(0.5, -250, 0.5, -300)
-MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.Size = UDim2.new(0, 600, 0, 700)
+MainFrame.Position = UDim2.new(0.5, -300, 0.5, -350)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
--- Add rounded corners
+-- Add smooth dragging
+local isDragging = false
+local dragStart = nil
+local startPos = nil
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+MainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+MainFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+-- Add rounded corners and shadow effect
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.CornerRadius = UDim.new(0, 12)
 UICorner.Parent = MainFrame
 
--- Create title bar
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name = "Shadow"
+Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+Shadow.BackgroundTransparency = 1
+Shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+Shadow.Size = UDim2.new(1, 30, 1, 30)
+Shadow.ZIndex = -1
+Shadow.Image = "rbxassetid://5554236805"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.6
+Shadow.Parent = MainFrame
+
+-- Create modern title bar
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
-TitleBar.Size = UDim2.new(1, 0, 0, 30)
-TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.CornerRadius = UDim.new(0, 12)
 TitleCorner.Parent = TitleBar
 
--- Create title text
-local TitleText = Instance.new("TextLabel")
-TitleText.Name = "TitleText"
-TitleText.Size = UDim2.new(1, -30, 1, 0)
-TitleText.Position = UDim2.new(0, 10, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.Text = "Detailed Server Information"
-TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleText.TextSize = 18
-TitleText.Font = Enum.Font.SourceSansBold
-TitleText.TextXAlignment = Enum.TextXAlignment.Left
-TitleText.Parent = TitleBar
+-- Create tabs container
+local TabsContainer = Instance.new("Frame")
+TabsContainer.Name = "TabsContainer"
+TabsContainer.Size = UDim2.new(1, -40, 0, 40)
+TabsContainer.Position = UDim2.new(0, 20, 0, 50)
+TabsContainer.BackgroundTransparency = 1
+TabsContainer.Parent = MainFrame
 
--- Create close button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Size = UDim2.new(0, 20, 0, 20)
-CloseButton.Position = UDim2.new(1, -25, 0, 5)
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 75, 75)
-CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.TextSize = 14
-CloseButton.Font = Enum.Font.SourceSansBold
-CloseButton.Parent = TitleBar
+local TabsLayout = Instance.new("UIListLayout")
+TabsLayout.FillDirection = Enum.FillDirection.Horizontal
+TabsLayout.Padding = UDim.new(0, 10)
+TabsLayout.Parent = TabsContainer
 
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 5)
-CloseCorner.Parent = CloseButton
+-- Create content frames
+local ContentContainer = Instance.new("Frame")
+ContentContainer.Name = "ContentContainer"
+ContentContainer.Size = UDim2.new(1, -40, 1, -100)
+ContentContainer.Position = UDim2.new(0, 20, 0, 100)
+ContentContainer.BackgroundTransparency = 1
+ContentContainer.Parent = MainFrame
 
--- Create scroll frame
-local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Name = "ScrollFrame"
-ScrollFrame.Size = UDim2.new(1, -20, 1, -40)
-ScrollFrame.Position = UDim2.new(0, 10, 0, 35)
-ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.BorderSizePixel = 0
-ScrollFrame.ScrollBarThickness = 6
-ScrollFrame.Parent = MainFrame
-
--- Function to create info labels
-local function createInfoLabel(text, yPos)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 0, 20)
-    label.Position = UDim2.new(0, 0, 0, yPos)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 14
-    label.Font = Enum.Font.SourceSans
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextWrapped = true
-    return label
+-- Function to create a tab button
+local function createTab(name, icon)
+    local TabButton = Instance.new("TextButton")
+    TabButton.Name = name .. "Tab"
+    TabButton.Size = UDim2.new(0, 120, 1, 0)
+    TabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    TabButton.Text = name
+    TabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TabButton.TextSize = 14
+    TabButton.Font = Enum.Font.GothamSemibold
+    
+    local TabCorner = Instance.new("UICorner")
+    TabCorner.CornerRadius = UDim.new(0, 8)
+    TabCorner.Parent = TabButton
+    
+    local IconImage = Instance.new("ImageLabel")
+    IconImage.Size = UDim2.new(0, 16, 0, 16)
+    IconImage.Position = UDim2.new(0, 10, 0.5, -8)
+    IconImage.BackgroundTransparency = 1
+    IconImage.Image = icon
+    IconImage.Parent = TabButton
+    
+    TabButton.Parent = TabsContainer
+    return TabButton
 end
 
--- Function to format numbers with commas
-local function formatNumber(number)
-    return tostring(number):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+-- Create content frames for each tab
+local function createContentFrame(name)
+    local Frame = Instance.new("ScrollingFrame")
+    Frame.Name = name .. "Content"
+    Frame.Size = UDim2.new(1, 0, 1, 0)
+    Frame.BackgroundTransparency = 1
+    Frame.BorderSizePixel = 0
+    Frame.ScrollBarThickness = 4
+    Frame.Visible = false
+    Frame.Parent = ContentContainer
+    
+    local PaddingFrame = Instance.new("Frame")
+    PaddingFrame.Name = "PaddingFrame"
+    PaddingFrame.Size = UDim2.new(1, -8, 1, 0)
+    PaddingFrame.BackgroundTransparency = 1
+    PaddingFrame.Parent = Frame
+    
+    local ListLayout = Instance.new("UIListLayout")
+    ListLayout.Padding = UDim.new(0, 10)
+    ListLayout.Parent = PaddingFrame
+    
+    return Frame
+end
+
+-- Create metric card
+local function createMetricCard(parent, title, value)
+    local Card = Instance.new("Frame")
+    Card.Size = UDim2.new(1, 0, 0, 80)
+    Card.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    
+    local CardCorner = Instance.new("UICorner")
+    CardCorner.CornerRadius = UDim.new(0, 8)
+    CardCorner.Parent = Card
+    
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(1, -20, 0, 20)
+    TitleLabel.Position = UDim2.new(0, 10, 0, 10)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Text = title
+    TitleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    TitleLabel.TextSize = 14
+    TitleLabel.Font = Enum.Font.GothamSemibold
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.Parent = Card
+    
+    local ValueLabel = Instance.new("TextLabel")
+    ValueLabel.Size = UDim2.new(1, -20, 0, 30)
+    ValueLabel.Position = UDim2.new(0, 10, 0, 40)
+    ValueLabel.BackgroundTransparency = 1
+    ValueLabel.Text = value
+    ValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ValueLabel.TextSize = 20
+    ValueLabel.Font = Enum.Font.GothamBold
+    ValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ValueLabel.Name = "ValueLabel"
+    ValueLabel.Parent = Card
+    
+    Card.Parent = parent
+    return Card
+end
+
+-- Create tabs and content
+local tabs = {
+    {name = "Overview", icon = "rbxassetid://3926305904"},
+    {name = "Players", icon = "rbxassetid://3926307971"},
+    {name = "Performance", icon = "rbxassetid://3926305904"},
+    {name = "Environment", icon = "rbxassetid://3926307971"}
+}
+
+local contentFrames = {}
+for _, tab in ipairs(tabs) do
+    local tabButton = createTab(tab.name, tab.icon)
+    local contentFrame = createContentFrame(tab.name)
+    contentFrames[tab.name] = contentFrame
+    
+    tabButton.MouseButton1Click:Connect(function()
+        for _, frame in pairs(contentFrames) do
+            frame.Visible = false
+        end
+        contentFrame.Visible = true
+        
+        -- Update tab appearance
+        for _, otherTab in ipairs(TabsContainer:GetChildren()) do
+            if otherTab:IsA("TextButton") then
+                otherTab.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+                otherTab.TextColor3 = Color3.fromRGB(200, 200, 200)
+            end
+        end
+        tabButton.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+        tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
 end
 
 -- Function to update server information
 local function updateServerInfo()
-    ScrollFrame:ClearAllChildren()
-    local yOffset = 0
+    -- Update Overview tab
+    local overviewFrame = contentFrames.Overview.PaddingFrame
+    overviewFrame:ClearAllChildren()
     
-    -- Basic Server Information
-    local info = {
-        "=== BASIC SERVER INFORMATION ===",
-        "Game ID: " .. game.GameId,
-        "Place ID: " .. game.PlaceId,
-        "Place Version: " .. game.PlaceVersion,
-        "Server Job ID: " .. game.JobId,
-        "Game Name: " .. game.Name,
-        "Creator ID: " .. game.CreatorId,
-        "Creator Type: " .. game.CreatorType.Name,
-        
-        "\n=== SERVER STATISTICS ===",
-        "Server Uptime: " .. string.format("%.2f", workspace.DistributedGameTime) .. " seconds",
-        "Total Player Count: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers,
-        
-        "\n=== PERFORMANCE METRICS ===",
-        "Data Received: " .. formatNumber(Stats.DataReceiveKbps) .. " Kb/s",
-        "Data Sent: " .. formatNumber(Stats.DataSendKbps) .. " Kb/s",
-        "Memory Usage: " .. string.format("%.2f", Stats:GetTotalMemoryUsageMb()) .. " MB",
-        "Instance Count: " .. formatNumber(Stats.InstanceCount),
-        "Primitive Count: " .. formatNumber(Stats.PrimitivesCount),
-        
-        "\n=== WORKSPACE PROPERTIES ===",
-        "Gravity: " .. Workspace.Gravity,
-        "StreamingEnabled: " .. tostring(Workspace.StreamingEnabled),
-        
-        "\n=== LIGHTING PROPERTIES ===",
-        "Technology: " .. tostring(Lighting.Technology),
-        "Ambient: " .. tostring(Lighting.Ambient),
-        "Brightness: " .. Lighting.Brightness,
-        "GlobalShadows: " .. tostring(Lighting.GlobalShadows),
-        "TimeOfDay: " .. Lighting.TimeOfDay,
-        
-        "\n=== ADDITIONAL PROPERTIES ===",
-        "Workspace.AllowThirdPartySales: " .. tostring(Workspace.AllowThirdPartySales),
-        
-        "\n=== PLAYER SPECIFIC INFORMATION ===",
-    }
+    createMetricCard(overviewFrame, "Server Uptime", formatTime(workspace.DistributedGameTime))
+    createMetricCard(overviewFrame, "Total Players", #Players:GetPlayers() .. "/" .. Players.MaxPlayers)
+    createMetricCard(overviewFrame, "Place Version", tostring(game.PlaceVersion))
+    createMetricCard(overviewFrame, "Server Job ID", game.JobId)
     
-    -- Add player information to the list
+    -- Update Performance tab
+    local performanceFrame = contentFrames.Performance.PaddingFrame
+    performanceFrame:ClearAllChildren()
+    
+    createMetricCard(performanceFrame, "Memory Usage", string.format("%.2f MB", Stats:GetTotalMemoryUsageMb()))
+    createMetricCard(performanceFrame, "Data Received", formatNumber(Stats.DataReceiveKbps) .. " Kb/s")
+    createMetricCard(performanceFrame, "Data Sent", formatNumber(Stats.DataSendKbps) .. " Kb/s")
+    createMetricCard(performanceFrame, "Instance Count", formatNumber(Stats.InstanceCount))
+    
+    -- Update Players tab
+    local playersFrame = contentFrames.Players.PaddingFrame
+    playersFrame:ClearAllChildren()
+    
     for _, player in ipairs(Players:GetPlayers()) do
-        table.insert(info, "Player Name: " .. player.Name)
-        table.insert(info, "User ID: " .. player.UserId)
-        table.insert(info, "Account Age: " .. player.AccountAge .. " days")
-        table.insert(info, "Is Premium: " .. tostring(player.MembershipType == Enum.MembershipType.Premium))
-        table.insert(info, "===");
-    end
-
-    -- Create labels for all information
-    for _, text in ipairs(info) do
-        local label = createInfoLabel(text, yOffset)
-        label.Parent = ScrollFrame
-        yOffset = yOffset + 25
+        local playerCard = Instance.new("Frame")
+        playerCard.Size = UDim2.new(1, 0, 0, 100)
+        playerCard.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        
+        local playerCorner = Instance.new("UICorner")
+        playerCorner.CornerRadius = UDim.new(0, 8)
+        playerCorner.Parent = playerCard
+        
+        local avatar = Instance.new("ImageLabel")
+        avatar.Size = UDim2.new(0, 60, 0, 60)
+        avatar.Position = UDim2.new(0, 20, 0, 20)
+        avatar.BackgroundTransparency = 1
+        avatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size60x60)
+        avatar.Parent = playerCard
+        
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, -100, 0, 20)
+        nameLabel.Position = UDim2.new(0, 90, 0, 20)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = player.Name
+        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nameLabel.TextSize = 16
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.Parent = playerCard
+        
+        local infoLabel = Instance.new("TextLabel")
+        infoLabel.Size = UDim2.new(1, -100, 0, 20)
+        infoLabel.Position = UDim2.new(0, 90, 0, 45)
+        infoLabel.BackgroundTransparency = 1
+        infoLabel.Text = string.format("Account Age: %d days | Premium: %s", 
+            player.AccountAge,
+            tostring(player.MembershipType == Enum.MembershipType.Premium))
+        infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        infoLabel.TextSize = 14
+        infoLabel.Font = Enum.Font.Gotham
+        infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+        infoLabel.Parent = playerCard
+        
+        playerCard.Parent = playersFrame
     end
     
-    -- Update ScrollingFrame canvas size
-    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+    -- Update Environment tab
+    local environmentFrame = contentFrames.Environment.PaddingFrame
+    environmentFrame:ClearAllChildren()
+    
+    createMetricCard(environmentFrame, "Gravity", tostring(Workspace.Gravity))
+    createMetricCard(environmentFrame, "Time of Day", Lighting.TimeOfDay)
+    createMetricCard(environmentFrame, "Brightness", tostring(Lighting.Brightness))
+    createMetricCard(environmentFrame, "Technology", tostring(Lighting.Technology))
 end
+
+-- Create close button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 95, 95)
+CloseButton.Text = "×"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 24
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseButton
+
+-- Create title text
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(1, -80, 1, 0)
+TitleText.Position = UDim2.new(0, 15, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "Server Information"
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.TextSize = 18
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TitleBar
 
 -- Create toggle button
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleButton"
-ToggleButton.Size = UDim2.new(0, 120, 0, 30)
-ToggleButton.Position = UDim2.new(0.5, -60, 0, 10)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-ToggleButton.Text = "Show Server Info"
+ToggleButton.Size = UDim2.new(0, 140, 0, 40)
+ToggleButton.Position = UDim2.new(0, 20, 0, 20)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
+ToggleButton.Text = "Server Info"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 14
-ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.TextSize = 16
+ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.Parent = ScreenGui
+ToggleButton.AutoButtonColor = false
 
-ToggleButton.MouseButton1Click:Connect(function()
-    updateServerInfo()
-    MainFrame.Visible = not MainFrame.Visible
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 8)
+ToggleCorner.Parent = ToggleButton
+
+-- Add hover effect to toggle button
+ToggleButton.MouseEnter:Connect(function()
+    TweenService:Create(ToggleButton, TweenInfo.new(0.3), {
+        BackgroundColor3 = Color3.fromRGB(85, 125, 245)
+    }):Play()
+end)
+
+ToggleButton.MouseLeave:Connect(function()
+    TweenService:Create(ToggleButton, TweenInfo.new(0.3), {
+        BackgroundColor3 = Color3.fromRGB(65, 105, 225)
+    }):Play()
 end)
 
 -- Close button functionality
@@ -184,22 +374,35 @@ CloseButton.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
 end)
 
--- Ensure the GUI updates on a regular interval
+-- Toggle button functionality
+ToggleButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+    if MainFrame.Visible then
+        updateServerInfo()
+        -- Show first tab by default
+        local firstTab = TabsContainer:FindFirstChild(tabs[1].name .. "Tab")
+        if firstTab then
+            firstTab:Fire("MouseButton1Click")
+        end
+    end
+end)
+
+-- Initialize the GUI
+MainFrame.Visible = false
+updateServerInfo()
+
+-- Update server info periodically when visible
 RunService.Heartbeat:Connect(function()
     if MainFrame.Visible then
         updateServerInfo()
     end
 end)
 
--- Initialize the GUI
-MainFrame.Visible = false
-
--- Handle player leaving
-Players.PlayerRemoving:Connect(function(player)
+-- Handle player events
+Players.PlayerAdded:Connect(function()
     updateServerInfo()
 end)
 
--- Handle new player joining
-Players.PlayerAdded:Connect(function(player)
+Players.PlayerRemoving:Connect(function()
     updateServerInfo()
 end)
