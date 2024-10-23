@@ -1,1 +1,235 @@
-discontinued.....
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MapMeasureGUI"
+ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 250, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+-- Add rounded corners
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Map Measurer"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 24
+Title.Font = Enum.Font.GothamBold
+Title.Parent = MainFrame
+
+-- Close Button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 18
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = MainFrame
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 5)
+CloseCorner.Parent = CloseButton
+
+-- Results Display
+local ResultsFrame = Instance.new("Frame")
+ResultsFrame.Name = "ResultsFrame"
+ResultsFrame.Size = UDim2.new(0.9, 0, 0.6, 0)
+ResultsFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+ResultsFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+ResultsFrame.BorderSizePixel = 0
+ResultsFrame.Parent = MainFrame
+
+local ResultsCorner = Instance.new("UICorner")
+ResultsCorner.CornerRadius = UDim.new(0, 8)
+ResultsCorner.Parent = ResultsFrame
+
+-- Map Size with Copy Button
+local MapSizeContainer = Instance.new("Frame")
+MapSizeContainer.Name = "MapSizeContainer"
+MapSizeContainer.Size = UDim2.new(1, 0, 0.5, 0)
+MapSizeContainer.BackgroundTransparency = 1
+MapSizeContainer.Parent = ResultsFrame
+
+local MapSize = Instance.new("TextLabel")
+MapSize.Name = "MapSize"
+MapSize.Size = UDim2.new(0.7, 0, 1, 0)
+MapSize.BackgroundTransparency = 1
+MapSize.Text = "Map Size: Calculating..."
+MapSize.TextColor3 = Color3.fromRGB(255, 255, 255)
+MapSize.TextSize = 16
+MapSize.Font = Enum.Font.Gotham
+MapSize.Parent = MapSizeContainer
+
+local CopyButton = Instance.new("TextButton")
+CopyButton.Name = "CopyButton"
+CopyButton.Size = UDim2.new(0.25, 0, 0.8, 0)
+CopyButton.Position = UDim2.new(0.73, 0, 0.1, 0)
+CopyButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+CopyButton.Text = "Copy"
+CopyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CopyButton.TextSize = 14
+CopyButton.Font = Enum.Font.Gotham
+CopyButton.Parent = MapSizeContainer
+
+local CopyCorner = Instance.new("UICorner")
+CopyCorner.CornerRadius = UDim.new(0, 5)
+CopyCorner.Parent = CopyButton
+
+local PlayerPos = Instance.new("TextLabel")
+PlayerPos.Name = "PlayerPos"
+PlayerPos.Size = UDim2.new(1, 0, 0.5, 0)
+PlayerPos.Position = UDim2.new(0, 0, 0.5, 0)
+PlayerPos.BackgroundTransparency = 1
+PlayerPos.Text = "Current Position: Calculating..."
+PlayerPos.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayerPos.TextSize = 16
+PlayerPos.Font = Enum.Font.Gotham
+PlayerPos.Parent = ResultsFrame
+
+-- Refresh Button
+local RefreshButton = Instance.new("TextButton")
+RefreshButton.Name = "RefreshButton"
+RefreshButton.Size = UDim2.new(0.8, 0, 0.15, 0)
+RefreshButton.Position = UDim2.new(0.1, 0, 0.82, 0)
+RefreshButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+RefreshButton.Text = "Refresh"
+RefreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+RefreshButton.TextSize = 18
+RefreshButton.Font = Enum.Font.GothamBold
+RefreshButton.Parent = MainFrame
+
+local RefreshCorner = Instance.new("UICorner")
+RefreshCorner.CornerRadius = UDim.new(0, 8)
+RefreshCorner.Parent = RefreshButton
+
+-- Function to show copy notification
+local function showCopyNotification()
+    local notification = Instance.new("TextLabel")
+    notification.Size = UDim2.new(0, 100, 0, 30)
+    notification.Position = UDim2.new(0.5, -50, 0, -40)
+    notification.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    notification.TextColor3 = Color3.fromRGB(255, 255, 255)
+    notification.Text = "Copied!"
+    notification.TextSize = 14
+    notification.Font = Enum.Font.Gotham
+    notification.Parent = MainFrame
+
+    local notifCorner = Instance.new("UICorner")
+    notifCorner.CornerRadius = UDim.new(0, 5)
+    notifCorner.Parent = notification
+
+    -- Animate notification
+    notification.BackgroundTransparency = 0.2
+    notification.TextTransparency = 0
+
+    local fadeOut = TweenService:Create(notification, 
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {BackgroundTransparency = 1, TextTransparency = 1}
+    )
+
+    delay(1, function()
+        fadeOut:Play()
+        game.Debris:AddItem(notification, 0.5)
+    end)
+end
+
+-- Function to measure map size
+local function measureMapSize()
+    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+    local minX, minY, minZ = math.huge, math.huge, math.huge
+    
+    for _, part in ipairs(workspace:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local size = part.Size
+            local pos = part.Position
+            
+            maxX = math.max(maxX, pos.X + size.X/2)
+            maxY = math.max(maxY, pos.Y + size.Y/2)
+            maxZ = math.max(maxZ, pos.Z + size.Z/2)
+            
+            minX = math.min(minX, pos.X - size.X/2)
+            minY = math.min(minY, pos.Y - size.Y/2)
+            minZ = math.min(minZ, pos.Z - size.Z/2)
+        end
+    end
+    
+    local sizeX = maxX - minX
+    local sizeY = maxY - minY
+    local sizeZ = maxZ - minZ
+    
+    return Vector3.new(sizeX, sizeY, sizeZ)
+end
+
+-- Function to update measurements
+local function updateMeasurements()
+    local mapSize = measureMapSize()
+    local player = Players.LocalPlayer
+    local character = player.Character
+    
+    if character then
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            MapSize.Text = string.format("Map Size: %.1f x %.1f x %.1f", mapSize.X, mapSize.Y, mapSize.Z)
+            PlayerPos.Text = string.format("Current Position: %.1f, %.1f, %.1f", 
+                humanoidRootPart.Position.X,
+                humanoidRootPart.Position.Y,
+                humanoidRootPart.Position.Z)
+        end
+    end
+    
+    return mapSize
+end
+
+-- Animations
+local function setupAnimations()
+    -- Opening animation
+    MainFrame.Position = UDim2.new(0.5, -125, 1, 0) -- Start below the screen
+    local openTween = TweenService:Create(MainFrame, TweenInfo.new(0.5), {Position = UDim2.new(0.5, -125, 0.5, -150)})
+    openTween:Play()
+
+    -- Close button functionality
+    CloseButton.MouseButton1Click:Connect(function()
+        local closeTween = TweenService:Create(MainFrame, TweenInfo.new(0.5), {Position = UDim2.new(0.5, -125, 1, 0)}) -- Move below the screen
+        closeTween:Play()
+        closeTween.Completed:Wait()
+        ScreenGui:Destroy()
+    end)
+
+    -- Copy button functionality
+    CopyButton.MouseButton1Click:Connect(function()
+        setclipboard(MapSize.Text)
+        showCopyNotification()
+    end)
+
+    -- Refresh button functionality
+    RefreshButton.MouseButton1Click:Connect(function()
+        updateMeasurements()
+    end)
+
+    -- Update measurements periodically
+    while wait(2) do
+        updateMeasurements()
+    end
+end
+
+-- Show GUI
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+setupAnimations()
