@@ -102,7 +102,7 @@ local trackedObject = player.Character.HumanoidRootPart
 local trackedObjectName = "Local Player"
 local currentMarker = nil
 
--- Function to calculate speed in m/s
+-- Function to calculate speed in studs/s
 local function getSpeed(object)
     if object:IsA("BasePart") then
         return object.Velocity.Magnitude
