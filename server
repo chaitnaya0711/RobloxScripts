@@ -1,38 +1,166 @@
--- Detect and spam any remote event in Roblox automatically without user input
--- WARNING: Misuse of remote event spamming can lead to moderation actions or bans in Roblox, so use responsibly and only in environments where this is permitted.
+-- Create RemoteSpy GUI with closing, reopening, and remote event removal functionality
+local RemoteSpy = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local ToggleButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton")
+local RemoteListFrame = Instance.new("ScrollingFrame")
+local EventDetailsFrame = Instance.new("Frame")
 
--- Start by setting up a function that detects any remote event firing
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RemoteEventSpam = {}
+-- Set up the RemoteSpy GUI
+RemoteSpy.Name = "RemoteSpy_" .. math.random(1000, 9999)
+RemoteSpy.Parent = game:GetService("CoreGui")
 
--- We loop through all objects in ReplicatedStorage to find RemoteEvents
-for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
-    if remote:IsA("RemoteEvent") then
-        table.insert(RemoteEventSpam, remote)
-    end
-end
+MainFrame.Parent = RemoteSpy
+MainFrame.Size = UDim2.new(0.6, 0, 0.8, 0) -- Main frame size
+MainFrame.Position = UDim2.new(0.2, 0, 0.1, 0) -- Centered
+MainFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2) -- Dark grey background
 
--- Define a function to spam the remote events
-local function SpamRemoteEvent(remote)
-    while true do
-        -- Detect when the remote event is fired, then spam it automatically
-        remote:FireServer() -- Fires the event to the server
-        print("Spamming RemoteEvent: " .. remote.Name) -- For debugging purposes
-        wait(0.1) -- Adjust the wait time as needed to control spamming speed
-    end
-end
+-- Close Button setup
+CloseButton.Parent = MainFrame
+CloseButton.Size = UDim2.new(0, 100, 0, 50)
+CloseButton.Position = UDim2.new(1, -110, 0, 10)
+CloseButton.Text = "Close"
+CloseButton.BackgroundColor3 = Color3.new(1, 0, 0)
 
--- Automatically spam every remote event detected
-for _, remote in ipairs(RemoteEventSpam) do
-    remote.OnClientEvent:Connect(function()
-        -- Start spamming the event for all users to see
-        SpamRemoteEvent(remote)
+-- Toggle Button setup to re-open the GUI
+ToggleButton.Parent = RemoteSpy
+ToggleButton.Size = UDim2.new(0, 100, 0, 50)
+ToggleButton.Position = UDim2.new(0.01, 0, 0.01, 0)
+ToggleButton.BackgroundColor3 = Color3.new(0, 1, 0)
+ToggleButton.Text = "Open RemoteSpy"
+
+-- Frame for displaying available RemoteEvents
+RemoteListFrame.Parent = MainFrame
+RemoteListFrame.Size = UDim2.new(0.3, 0, 0.9, 0)
+RemoteListFrame.Position = UDim2.new(0, 10, 0.1, 0)
+RemoteListFrame.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
+RemoteListFrame.CanvasSize = UDim2.new(0, 0, 2, 0) -- Scrollable
+
+-- Frame for showing detailed event info
+EventDetailsFrame.Parent = MainFrame
+EventDetailsFrame.Size = UDim2.new(0.65, 0, 0.9, 0)
+EventDetailsFrame.Position = UDim2.new(0.35, 0, 0.1, 0)
+EventDetailsFrame.BackgroundColor3 = Color3.new(0.9, 0.9, 0.9)
+
+-- Make the GUI closeable and reopenable
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    ToggleButton.Visible = true
+end)
+
+ToggleButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    ToggleButton.Visible = false
+end)
+
+-- Data tracking for remote events
+local remoteData = {}
+
+-- Function to create buttons for each RemoteEvent in the side panel
+local function addRemoteToList(remote)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0.95, 0, 0, 50)
+    button.Text = remote.Name
+    button.Parent = RemoteListFrame
+
+    -- Add a "Remove" button to delete the remote event
+    local removeButton = Instance.new("TextButton")
+    removeButton.Size = UDim2.new(0.2, 0, 0, 30)
+    removeButton.Position = UDim2.new(0.8, 0, 0, 0)
+    removeButton.Text = "Remove"
+    removeButton.BackgroundColor3 = Color3.new(1, 0, 0)
+    removeButton.Parent = button
+
+    -- Update the details section when a button is clicked
+    button.MouseButton1Click:Connect(function()
+        EventDetailsFrame:ClearAllChildren()
+
+        -- Create text to display details of the selected RemoteEvent
+        local detailsLabel = Instance.new("TextLabel")
+        detailsLabel.Size = UDim2.new(1, 0, 1, 0)
+        detailsLabel.TextColor3 = Color3.new(0, 0, 0)
+        detailsLabel.TextScaled = true
+
+        -- Build detailed event information
+        local remoteInfo = "Remote Event: " .. remote.Name .. "\n"
+        remoteInfo = remoteInfo .. "Parent: " .. tostring(remote.Parent) .. "\n"
+        remoteInfo = remoteInfo .. "Class: " .. remote.ClassName .. "\n"
+
+        -- Track frequency
+        if remoteData[remote.Name] then
+            remoteInfo = remoteInfo .. "Times fired: " .. remoteData[remote.Name].count .. "\n"
+        else
+            remoteInfo = remoteInfo .. "Times fired: 0\n"
+        end
+
+        -- Display detailed arguments
+        local args = remoteData[remote.Name] and remoteData[remote.Name].lastArgs or {}
+        for i, arg in ipairs(args) do
+            remoteInfo = remoteInfo .. "Arg " .. i .. ": " .. tostring(arg) .. "\n"
+        end
+
+        -- Show info in the EventDetailsFrame
+        detailsLabel.Text = remoteInfo
+        detailsLabel.Parent = EventDetailsFrame
+    end)
+
+    -- Remove the remote when "Remove" button is clicked
+    removeButton.MouseButton1Click:Connect(function()
+        remote:Destroy() -- Deletes the remote event from the game
+        button:Destroy() -- Removes the button from the list
     end)
 end
 
-print("Auto-detection and spamming script for remote events loaded.")
+-- Function to log and display RemoteEvent details
+local function spyOnRemoteEvent(remote)
+    -- Hook onto the event to capture its arguments
+    remote.OnClientEvent:Connect(function(...)
+        local args = {...}
+        local argText = ""
+        local remoteInfo = "Remote Event: " .. remote.Name .. "\n"
 
--- Explanation for the devs who enjoy riding bikes:
--- This script keeps detecting remote events in ReplicatedStorage and spams them as soon as they're fired.
--- No need to type anything, no need to interact. Once it detects the event, it keeps firing that remote until someone notices!
--- Let your in-game companions ride along with the flood of events like a gang of bikers on a wild highway!
+        -- Get and display additional critical information
+        remoteInfo = remoteInfo .. "Parent: " .. tostring(remote.Parent) .. "\n"
+        remoteInfo = remoteInfo .. "Class: " .. remote.ClassName .. "\n"
+
+        -- Display arguments passed with the event
+        for i, arg in ipairs(args) do
+            argText = argText .. "Arg " .. i .. ": " .. tostring(arg) .. "\n"
+        end
+
+        -- Track frequency and arguments
+        if remoteData[remote.Name] then
+            remoteData[remote.Name].count = remoteData[remote.Name].count + 1
+        else
+            remoteData[remote.Name] = { count = 1 }
+        end
+        remoteData[remote.Name].lastArgs = args
+
+        -- Refresh event details when a remote is fired
+        EventDetailsFrame:ClearAllChildren()
+        local detailsLabel = Instance.new("TextLabel")
+        detailsLabel.Size = UDim2.new(1, 0, 1, 0)
+        detailsLabel.TextColor3 = Color3.new(0, 0, 0)
+        detailsLabel.TextScaled = true
+
+        remoteInfo = remoteInfo .. "Times fired: " .. remoteData[remote.Name].count .. "\n" .. argText
+        detailsLabel.Text = remoteInfo
+        detailsLabel.Parent = EventDetailsFrame
+    end)
+end
+
+-- Spy on RemoteEvents with 5-second delay to avoid frying the device
+while wait(5) do
+    for _, remote in ipairs(getgc(true)) do
+        if typeof(remote) == "Instance" and remote:IsA("RemoteEvent") then
+            if not remote:FindFirstChild("Hooked") then
+                local tag = Instance.new("BoolValue", remote)
+                tag.Name = "Hooked"
+
+                -- Add the remote to the list and spy on it
+                addRemoteToList(remote)
+                spyOnRemoteEvent(remote)
+            end
+        end
+    end
+end
