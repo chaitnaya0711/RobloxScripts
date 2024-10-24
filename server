@@ -1,0 +1,38 @@
+-- Detect and spam any remote event in Roblox automatically without user input
+-- WARNING: Misuse of remote event spamming can lead to moderation actions or bans in Roblox, so use responsibly and only in environments where this is permitted.
+
+-- Start by setting up a function that detects any remote event firing
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RemoteEventSpam = {}
+
+-- We loop through all objects in ReplicatedStorage to find RemoteEvents
+for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+    if remote:IsA("RemoteEvent") then
+        table.insert(RemoteEventSpam, remote)
+    end
+end
+
+-- Define a function to spam the remote events
+local function SpamRemoteEvent(remote)
+    while true do
+        -- Detect when the remote event is fired, then spam it automatically
+        remote:FireServer() -- Fires the event to the server
+        print("Spamming RemoteEvent: " .. remote.Name) -- For debugging purposes
+        wait(0.1) -- Adjust the wait time as needed to control spamming speed
+    end
+end
+
+-- Automatically spam every remote event detected
+for _, remote in ipairs(RemoteEventSpam) do
+    remote.OnClientEvent:Connect(function()
+        -- Start spamming the event for all users to see
+        SpamRemoteEvent(remote)
+    end)
+end
+
+print("Auto-detection and spamming script for remote events loaded.")
+
+-- Explanation for the devs who enjoy riding bikes:
+-- This script keeps detecting remote events in ReplicatedStorage and spams them as soon as they're fired.
+-- No need to type anything, no need to interact. Once it detects the event, it keeps firing that remote until someone notices!
+-- Let your in-game companions ride along with the flood of events like a gang of bikers on a wild highway!
