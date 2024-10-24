@@ -1,165 +1,347 @@
--- Create RemoteSpy GUI with closing, reopening, and remote event removal functionality
+-- Create RemoteSpy GUI with modern styling and animations
+local TweenService = game:GetService("TweenService")
 local RemoteSpy = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
+local UICorner_Main = Instance.new("UICorner")
 local ToggleButton = Instance.new("TextButton")
+local UICorner_Toggle = Instance.new("UICorner")
 local CloseButton = Instance.new("TextButton")
+local UICorner_Close = Instance.new("UICorner")
 local RemoteListFrame = Instance.new("ScrollingFrame")
+local UICorner_List = Instance.new("UICorner")
 local EventDetailsFrame = Instance.new("Frame")
+local UICorner_Details = Instance.new("UICorner")
+local Title = Instance.new("TextLabel")
+local UICorner_Title = Instance.new("UICorner")
+local UIListLayout = Instance.new("UIListLayout")
+local UIPadding = Instance.new("UIPadding")
+
+-- Animation configurations
+local TWEEN_SPEED = 0.3
+local HOVER_SCALE = 1.05
+local CLICK_SCALE = 0.95
+
+-- Color scheme
+local COLORS = {
+    Background = Color3.fromRGB(32, 34, 37),   -- Dark background
+    Secondary = Color3.fromRGB(47, 49, 54),    -- Lighter background
+    Accent = Color3.fromRGB(114, 137, 218),    -- Discord-like blue
+    Text = Color3.fromRGB(255, 255, 255),      -- White text
+    Warning = Color3.fromRGB(240, 71, 71),     -- Red for close button
+    Success = Color3.fromRGB(67, 181, 129)     -- Green for toggle button
+}
 
 -- Set up the RemoteSpy GUI
 RemoteSpy.Name = "RemoteSpy_" .. math.random(1000, 9999)
 RemoteSpy.Parent = game:GetService("CoreGui")
 
+-- Main frame setup with shadow effect
 MainFrame.Parent = RemoteSpy
-MainFrame.Size = UDim2.new(0.6, 0, 0.8, 0) -- Main frame size
-MainFrame.Position = UDim2.new(0.2, 0, 0.1, 0) -- Centered
-MainFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2) -- Dark grey background
+MainFrame.Size = UDim2.new(0.6, 0, 0.8, 0)
+MainFrame.Position = UDim2.new(0.2, 0, 0.1, 0)
+MainFrame.BackgroundColor3 = COLORS.Background
+MainFrame.ClipsDescendants = true
 
--- Close Button setup
+-- Add shadow
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name = "Shadow"
+Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+Shadow.BackgroundTransparency = 1
+Shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+Shadow.Size = UDim2.new(1, 47, 1, 47)
+Shadow.ZIndex = 0
+Shadow.Image = "rbxassetid://6014261993"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.5
+Shadow.Parent = MainFrame
+
+-- Add corners to main frame
+UICorner_Main.CornerRadius = UDim.new(0, 12)
+UICorner_Main.Parent = MainFrame
+
+-- Title setup
+Title.Parent = MainFrame
+Title.BackgroundColor3 = COLORS.Secondary
+Title.Size = UDim2.new(1, -20, 0, 40)
+Title.Position = UDim2.new(0, 10, 0, 10)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "RemoteSpy"
+Title.TextColor3 = COLORS.Text
+Title.TextSize = 18
+UICorner_Title.CornerRadius = UDim.new(0, 8)
+UICorner_Title.Parent = Title
+
+-- Close Button with hover effects
 CloseButton.Parent = MainFrame
-CloseButton.Size = UDim2.new(0, 100, 0, 50)
-CloseButton.Position = UDim2.new(1, -110, 0, 10)
+CloseButton.Size = UDim2.new(0, 90, 0, 32)
+CloseButton.Position = UDim2.new(1, -100, 0, 14)
+CloseButton.Font = Enum.Font.GothamBold
 CloseButton.Text = "Close"
-CloseButton.BackgroundColor3 = Color3.new(1, 0, 0)
+CloseButton.TextColor3 = COLORS.Text
+CloseButton.BackgroundColor3 = COLORS.Warning
+UICorner_Close.CornerRadius = UDim.new(0, 8)
+UICorner_Close.Parent = CloseButton
 
--- Toggle Button setup to re-open the GUI
+-- Toggle Button setup
 ToggleButton.Parent = RemoteSpy
-ToggleButton.Size = UDim2.new(0, 100, 0, 50)
+ToggleButton.Size = UDim2.new(0, 120, 0, 36)
 ToggleButton.Position = UDim2.new(0.01, 0, 0.01, 0)
-ToggleButton.BackgroundColor3 = Color3.new(0, 1, 0)
+ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.Text = "Open RemoteSpy"
+ToggleButton.TextColor3 = COLORS.Text
+ToggleButton.BackgroundColor3 = COLORS.Success
+UICorner_Toggle.CornerRadius = UDim.new(0, 8)
+UICorner_Toggle.Parent = ToggleButton
 
--- Frame for displaying available RemoteEvents
+-- Remote list frame with smooth scrolling
 RemoteListFrame.Parent = MainFrame
-RemoteListFrame.Size = UDim2.new(0.3, 0, 0.9, 0)
-RemoteListFrame.Position = UDim2.new(0, 10, 0.1, 0)
-RemoteListFrame.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
-RemoteListFrame.CanvasSize = UDim2.new(0, 0, 2, 0) -- Scrollable
+RemoteListFrame.Size = UDim2.new(0.3, -20, 0.9, -70)
+RemoteListFrame.Position = UDim2.new(0, 10, 0, 60)
+RemoteListFrame.BackgroundColor3 = COLORS.Secondary
+RemoteListFrame.ScrollBarThickness = 4
+RemoteListFrame.ScrollBarImageColor3 = COLORS.Accent
+UICorner_List.CornerRadius = UDim.new(0, 8)
+UICorner_List.Parent = RemoteListFrame
 
--- Frame for showing detailed event info
+-- Add UIListLayout for automatic button positioning
+UIListLayout.Parent = RemoteListFrame
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.SortOrder = Enum.SortOrder.Name
+UIPadding.Parent = RemoteListFrame
+UIPadding.PaddingTop = UDim.new(0, 5)
+UIPadding.PaddingLeft = UDim.new(0, 5)
+UIPadding.PaddingRight = UDim.new(0, 5)
+
+-- Event details frame
 EventDetailsFrame.Parent = MainFrame
-EventDetailsFrame.Size = UDim2.new(0.65, 0, 0.9, 0)
-EventDetailsFrame.Position = UDim2.new(0.35, 0, 0.1, 0)
-EventDetailsFrame.BackgroundColor3 = Color3.new(0.9, 0.9, 0.9)
+EventDetailsFrame.Size = UDim2.new(0.65, -20, 0.9, -70)
+EventDetailsFrame.Position = UDim2.new(0.35, 10, 0, 60)
+EventDetailsFrame.BackgroundColor3 = COLORS.Secondary
+UICorner_Details.CornerRadius = UDim.new(0, 8)
+UICorner_Details.Parent = EventDetailsFrame
 
--- Make the GUI closeable and reopenable
-CloseButton.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
-    ToggleButton.Visible = true
-end)
+-- Function to create hover effect
+local function createHoverEffect(button)
+    local originalSize = button.Size
+    local originalPosition = button.Position
+    
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(TWEEN_SPEED), {
+            Size = originalSize * HOVER_SCALE,
+            Position = originalPosition - (originalSize * (HOVER_SCALE - 1) / 2)
+        }):Play()
+    end)
+    
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(TWEEN_SPEED), {
+            Size = originalSize,
+            Position = originalPosition
+        }):Play()
+    end)
+    
+    button.MouseButton1Down:Connect(function()
+        TweenService:Create(button, TweenInfo.new(TWEEN_SPEED/2), {
+            Size = originalSize * CLICK_SCALE,
+            Position = originalPosition + (originalSize * (1 - CLICK_SCALE) / 2)
+        }):Play()
+    end)
+    
+    button.MouseButton1Up:Connect(function()
+        TweenService:Create(button, TweenInfo.new(TWEEN_SPEED/2), {
+            Size = originalSize,
+            Position = originalPosition
+        }):Play()
+    end)
+end
 
-ToggleButton.MouseButton1Click:Connect(function()
-    MainFrame.Visible = true
-    ToggleButton.Visible = false
-end)
+-- Apply hover effects
+createHoverEffect(CloseButton)
+createHoverEffect(ToggleButton)
 
--- Data tracking for remote events
-local remoteData = {}
-
--- Function to create buttons for each RemoteEvent in the side panel
+-- Function to create styled remote buttons
 local function addRemoteToList(remote)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, 0, 0, 40)
+    container.BackgroundTransparency = 1
+    container.Parent = RemoteListFrame
+    
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(0.95, 0, 0, 50)
+    button.Size = UDim2.new(0.8, -5, 1, 0)
+    button.Position = UDim2.new(0, 0, 0, 0)
+    button.BackgroundColor3 = COLORS.Accent
     button.Text = remote.Name
-    button.Parent = RemoteListFrame
-
-    -- Add a "Remove" button to delete the remote event
+    button.TextColor3 = COLORS.Text
+    button.Font = Enum.Font.Gotham
+    button.TextSize = 14
+    button.Parent = container
+    
+    local UICorner_Button = Instance.new("UICorner")
+    UICorner_Button.CornerRadius = UDim.new(0, 6)
+    UICorner_Button.Parent = button
+    
     local removeButton = Instance.new("TextButton")
-    removeButton.Size = UDim2.new(0.2, 0, 0, 30)
-    removeButton.Position = UDim2.new(0.8, 0, 0, 0)
-    removeButton.Text = "Remove"
-    removeButton.BackgroundColor3 = Color3.new(1, 0, 0)
-    removeButton.Parent = button
-
-    -- Update the details section when a button is clicked
+    removeButton.Size = UDim2.new(0.2, -5, 1, 0)
+    removeButton.Position = UDim2.new(0.8, 5, 0, 0)
+    removeButton.BackgroundColor3 = COLORS.Warning
+    removeButton.Text = "×"
+    removeButton.TextColor3 = COLORS.Text
+    removeButton.Font = Enum.Font.GothamBold
+    removeButton.TextSize = 18
+    removeButton.Parent = container
+    
+    local UICorner_Remove = Instance.new("UICorner")
+    UICorner_Remove.CornerRadius = UDim.new(0, 6)
+    UICorner_Remove.Parent = removeButton
+    
+    -- Add hover effects
+    createHoverEffect(button)
+    createHoverEffect(removeButton)
+    
+    -- Rest of the button functionality remains the same as in your original code
     button.MouseButton1Click:Connect(function()
         EventDetailsFrame:ClearAllChildren()
-
-        -- Create text to display details of the selected RemoteEvent
+        
         local detailsLabel = Instance.new("TextLabel")
-        detailsLabel.Size = UDim2.new(1, 0, 1, 0)
-        detailsLabel.TextColor3 = Color3.new(0, 0, 0)
-        detailsLabel.TextScaled = true
-
-        -- Build detailed event information
+        detailsLabel.Size = UDim2.new(1, -20, 1, -20)
+        detailsLabel.Position = UDim2.new(0, 10, 0, 10)
+        detailsLabel.BackgroundTransparency = 1
+        detailsLabel.TextColor3 = COLORS.Text
+        detailsLabel.TextSize = 14
+        detailsLabel.Font = Enum.Font.Gotham
+        detailsLabel.TextXAlignment = Enum.TextXAlignment.Left
+        detailsLabel.TextYAlignment = Enum.TextYAlignment.Top
+        detailsLabel.Parent = EventDetailsFrame
+        
+        -- Build remote info with the same logic as your original code
         local remoteInfo = "Remote Event: " .. remote.Name .. "\n"
         remoteInfo = remoteInfo .. "Parent: " .. tostring(remote.Parent) .. "\n"
         remoteInfo = remoteInfo .. "Class: " .. remote.ClassName .. "\n"
-
-        -- Track frequency
+        
         if remoteData[remote.Name] then
             remoteInfo = remoteInfo .. "Times fired: " .. remoteData[remote.Name].count .. "\n"
         else
             remoteInfo = remoteInfo .. "Times fired: 0\n"
         end
-
-        -- Display detailed arguments
+        
         local args = remoteData[remote.Name] and remoteData[remote.Name].lastArgs or {}
         for i, arg in ipairs(args) do
             remoteInfo = remoteInfo .. "Arg " .. i .. ": " .. tostring(arg) .. "\n"
         end
-
-        -- Show info in the EventDetailsFrame
+        
         detailsLabel.Text = remoteInfo
-        detailsLabel.Parent = EventDetailsFrame
     end)
-
-    -- Remove the remote when "Remove" button is clicked
+    
     removeButton.MouseButton1Click:Connect(function()
-        remote:Destroy() -- Deletes the remote event from the game
-        button:Destroy() -- Removes the button from the list
+        local fadeOut = TweenService:Create(container, TweenInfo.new(0.3), {
+            BackgroundTransparency = 1
+        })
+        fadeOut:Play()
+        fadeOut.Completed:Connect(function()
+            remote:Destroy()
+            container:Destroy()
+        end)
     end)
 end
 
--- Function to log and display RemoteEvent details
+-- Animation for opening/closing the GUI
+local function animateGui(show)
+    local targetPosition = show and UDim2.new(0.2, 0, 0.1, 0) or UDim2.new(1.5, 0, 0.1, 0)
+    local tween = TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart), {
+        Position = targetPosition
+    })
+    tween:Play()
+end
+
+-- Connect buttons with animations
+CloseButton.MouseButton1Click:Connect(function()
+    animateGui(false)
+    wait(0.5)
+    MainFrame.Visible = false
+    ToggleButton.Visible = true
+end)
+
+ToggleButton.MouseButton1Click:Connect(function()
+    MainFrame.Position = UDim2.new(1.5, 0, 0.1, 0)
+    MainFrame.Visible = true
+    animateGui(true)
+    ToggleButton.Visible = false
+end)
+
+-- Rest of your RemoteEvent spying logic remains the same
+local remoteData = {}
+
+-- Function to spy on RemoteEvent with the same logic as your original code
 local function spyOnRemoteEvent(remote)
-    -- Hook onto the event to capture its arguments
     remote.OnClientEvent:Connect(function(...)
         local args = {...}
-        local argText = ""
         local remoteInfo = "Remote Event: " .. remote.Name .. "\n"
-
-        -- Get and display additional critical information
         remoteInfo = remoteInfo .. "Parent: " .. tostring(remote.Parent) .. "\n"
         remoteInfo = remoteInfo .. "Class: " .. remote.ClassName .. "\n"
-
-        -- Display arguments passed with the event
-        for i, arg in ipairs(args) do
-            argText = argText .. "Arg " .. i .. ": " .. tostring(arg) .. "\n"
-        end
-
-        -- Track frequency and arguments
+        
         if remoteData[remote.Name] then
             remoteData[remote.Name].count = remoteData[remote.Name].count + 1
         else
             remoteData[remote.Name] = { count = 1 }
         end
         remoteData[remote.Name].lastArgs = args
-
-        -- Refresh event details when a remote is fired
+        
+        -- Update event details with animation
         EventDetailsFrame:ClearAllChildren()
         local detailsLabel = Instance.new("TextLabel")
-        detailsLabel.Size = UDim2.new(1, 0, 1, 0)
-        detailsLabel.TextColor3 = Color3.new(0, 0, 0)
-        detailsLabel.TextScaled = true
-
+        detailsLabel.Size = UDim2.new(1, -20, 1, -20)
+        detailsLabel.Position = UDim2.new(0, 10, 0, 10)
+        detailsLabel.BackgroundTransparency = 1
+        detailsLabel.TextColor3 = COLORS.Text
+        detailsLabel.TextSize = 14
+        detailsLabel.Font = Enum.Font.Gotham
+        detailsLabel.TextXAlignment = Enum.TextXAlignment.Left
+        detailsLabel.TextYAlignment = Enum.TextYAlignment.Top
+        
+        local argText = ""
+        for i, arg in ipairs(args) do
+            argText = argText .. "Arg " .. i .. ": " .. tostring(arg) .. "\n"
+        end
+        
         remoteInfo = remoteInfo .. "Times fired: " .. remoteData[remote.Name].count .. "\n" .. argText
         detailsLabel.Text = remoteInfo
         detailsLabel.Parent = EventDetailsFrame
+        
+       -- Highlight effect on update
+        local highlight = Instance.new("Frame")
+        highlight.Size = UDim2.new(1, 0, 1, 0)
+        highlight.BackgroundColor3 = COLORS.Accent
+        highlight.BackgroundTransparency = 0.8
+        highlight.Parent = EventDetailsFrame
+        
+        local UICorner_Highlight = Instance.new("UICorner")
+        UICorner_Highlight.CornerRadius = UDim.new(0, 8)
+        UICorner_Highlight.Parent = highlight
+        
+        -- Animate highlight fade out
+        TweenService:Create(highlight, TweenInfo.new(1), {
+            BackgroundTransparency = 1
+        }):Play()
+        
+        game.Debris:AddItem(highlight, 1)
     end)
 end
 
--- Spy on RemoteEvents with 5-second delay to avoid frying the device
+-- Main loop to find and spy on RemoteEvents
 while wait(5) do
     for _, remote in ipairs(getgc(true)) do
         if typeof(remote) == "Instance" and remote:IsA("RemoteEvent") then
             if not remote:FindFirstChild("Hooked") then
                 local tag = Instance.new("BoolValue", remote)
                 tag.Name = "Hooked"
-
-                -- Add the remote to the list and spy on it
-                addRemoteToList(remote)
-                spyOnRemoteEvent(remote)
+                
+                -- Add to list with fade-in animation
+                local function addWithAnimation()
+                    addRemoteToList(remote)
+                    spyOnRemoteEvent(remote)
+                end
+                
+                -- Delay slightly for smooth animation if multiple remotes are found
+                delay(math.random() * 0.5, addWithAnimation)
             end
         end
     end
