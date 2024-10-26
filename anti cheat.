@@ -1,153 +1,193 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
--- Only run on client
-if not RunService:IsClient() then 
-    print("Script is not running on the client. Exiting.")
-    return 
+-- Configuration
+local CONFIG = {
+    MAX_SPEED = 30, -- Maximum allowed speed
+    POSITION_UPDATE_INTERVAL = 0.1, -- How often to update position history (10 times per second)
+    HISTORY_LENGTH = 10, -- Store 1 second worth of position history
+    CORRECTION_COOLDOWN = 0.5, -- Minimum time between position corrections
+    MAX_JUMP_POWER = 50, -- Maximum allowed jump power
+    HEAD_SIT_CHECK_INTERVAL = 0.5, -- How often to check for head sitting
+    VERTICAL_SPEED_LIMIT = 50, -- Maximum allowed vertical speed (for fly detection)
+    MIN_Y_POSITION = -500 -- Minimum allowed Y position before teleporting back
+}
+
+-- State management
+local MovementState = {
+    positionHistory = {},
+    lastUpdateTime = 0,
+    lastCorrectionTime = 0,
+    isBeingCorrected = false,
+    originalJumpPower = 50, -- Store original jump power
+    lastGroundY = 0 -- Store last ground Y position
+}
+
+-- Utility functions
+local function getTimestamp()
+    return tick()
 end
 
-local player = Players.LocalPlayer
-local exploitAttempts = 0
-local maxAttempts = 3  -- Set a reasonable maximum number of attempts
-print("Max exploit attempts set to:", maxAttempts)
+local function calculateSpeed(pos1, pos2, timeDiff)
+    local distance = (pos2 - pos1).Magnitude
+    return distance / timeDiff
+end
 
--- Create a table to track processed objects to prevent duplicate checks
-local processedObjects = {}
-print("Initialized processedObjects table.")
+local function updatePositionHistory(position)
+    local currentTime = getTimestamp()
+    
+    table.insert(MovementState.positionHistory, {
+        position = position,
+        timestamp = currentTime
+    })
+    
+    while #MovementState.positionHistory > CONFIG.HISTORY_LENGTH do
+        table.remove(MovementState.positionHistory, 1)
+    end
+end
 
--- Debounce system to prevent spam
-local lastWarningTime = 0
-local warningCooldown = 3 -- seconds
-print("Warning cooldown set to:", warningCooldown)
+local function correctPosition(character, targetPosition)
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local currentTime = getTimestamp()
+    if currentTime - MovementState.lastCorrectionTime < CONFIG.CORRECTION_COOLDOWN then
+        return
+    end
+    
+    MovementState.isBeingCorrected = true
+    MovementState.lastCorrectionTime = currentTime
+    
+    local humanoidRootPart = character.HumanoidRootPart
+    humanoidRootPart.CFrame = CFrame.new(targetPosition)
+    
+    MovementState.positionHistory = {}
+    MovementState.isBeingCorrected = false
+end
 
--- Function to display warning to player
-local function displayWarning()
-    local currentTime = tick()
-    print("Attempting to display warning...")
-    if currentTime - lastWarningTime >= warningCooldown then
-        lastWarningTime = currentTime
-        warn("Warning: Suspicious activity detected! Further attempts will result in a kick.")
-        print("Warning displayed to player.")
+-- New function to check for head sitting
+local function checkHeadSitting(character)
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local rootPart = character.HumanoidRootPart
+    local characterPosition = rootPart.Position
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local otherHead = player.Character:FindFirstChild("Head")
+            if otherHead then
+                local headPosition = otherHead.Position
+                local distance = (characterPosition - headPosition).Magnitude
+                
+                -- If character is very close to another player's head and above them
+                if distance < 3 and characterPosition.Y > headPosition.Y then
+                    -- Teleport the player to their last known ground position
+                    correctPosition(character, Vector3.new(characterPosition.X, MovementState.lastGroundY, characterPosition.Z))
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- New function to enforce jump power limits
+local function enforceJumpPower(humanoid)
+    if not humanoid then return end
+    
+    -- If jump power is modified, reset it
+    if humanoid.JumpPower > CONFIG.MAX_JUMP_POWER then
+        humanoid.JumpPower = MovementState.originalJumpPower
+    end
+    
+    -- Prevent flying by checking vertical speed
+    if humanoid.FloorMaterial == Enum.Material.Air then
+        local rootPart = humanoid.Parent:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            local verticalSpeed = math.abs(rootPart.Velocity.Y)
+            if verticalSpeed > CONFIG.VERTICAL_SPEED_LIMIT then
+                correctPosition(humanoid.Parent, Vector3.new(rootPart.Position.X, MovementState.lastGroundY, rootPart.Position.Z))
+            end
+        end
     else
-        print("Warning not displayed due to cooldown.")
-    end
-end
-
--- Safe error handling wrapper
-local function safeCall(func, ...)
-    local success, result = pcall(func, ...)
-    if not success then
-        warn("Error in anti-exploit system:", result)
-        print("Function call failed. Error:", result)
-    end
-    return success, result
-end
-
--- Check for exploit attempts
-local function checkForExploits()
-    print("Checking for exploit attempts...")
-    if exploitAttempts >= maxAttempts then 
-        print("Maximum exploit attempts reached. No further checks.")
-        return 
-    end
-    
-    exploitAttempts = exploitAttempts + 1
-    print("Incremented exploit attempts:", exploitAttempts)
-    
-    if exploitAttempts == 1 then
-        displayWarning()
-    elseif exploitAttempts >= maxAttempts then
-        print("Maximum exploit attempts reached. Kicking player...")
-        task.delay(0.1, function()
-            safeCall(function()
-                player:Kick("\nSuspicious activity detected.\nPlease rejoin if this was a mistake.")
-            end)
-        end)
-    end
-end
-
--- Validate instance
-local function isValidInstance(obj)
-    return typeof(obj) == "Instance" and obj.Parent ~= nil
-end
-
--- Process individual object
-local function processObject(obj)
-    if not isValidInstance(obj) then return end
-    
-    local objId = tostring(obj:GetFullName())
-    if processedObjects[objId] then 
-        return -- Prevent processing the same object multiple times
-    end
-    
-    processedObjects[objId] = true
-    
-    -- Check for suspicious scripts
-    if (obj:IsA("Script") or obj:IsA("LocalScript")) then
-        local success, env = pcall(function()
-            return getfenv(obj)
-        end)
-        
-        if success and env ~= getfenv() then
-            checkForExploits()
+        -- Update last ground Y position when character is on ground
+        local rootPart = humanoid.Parent:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            MovementState.lastGroundY = rootPart.Position.Y
         end
     end
 end
 
--- Monitor character and its descendants
-local function monitorCharacter(character)
-    if not isValidInstance(character) or not character:IsA("Model") then 
-        return 
+local function checkSpeed(character)
+    if not character or MovementState.isBeingCorrected then return end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not rootPart then return end
+    
+    -- Enforce jump power limits
+    enforceJumpPower(humanoid)
+    
+    local history = MovementState.positionHistory
+    if #history < 2 then return end
+    
+    local currentPos = rootPart.Position
+    local oldestRecord = history[1]
+    local timeDiff = getTimestamp() - oldestRecord.timestamp
+    
+    if timeDiff <= 0 then return end
+    
+    local speed = calculateSpeed(oldestRecord.position, currentPos, timeDiff)
+    
+    -- Check for being below minimum Y position (void fall protection)
+    if currentPos.Y < CONFIG.MIN_Y_POSITION then
+        correctPosition(character, Vector3.new(currentPos.X, MovementState.lastGroundY, currentPos.Z))
+        return
     end
     
-    -- Process existing objects
-    for _, obj in ipairs(character:GetDescendants()) do
-        safeCall(processObject, obj)
+    -- Only correct position if player is actually moving and speed exceeds limit
+    if speed > CONFIG.MAX_SPEED and humanoid.MoveDirection.Magnitude > 0 then
+        correctPosition(character, oldestRecord.position)
     end
+end
+
+local function initializeCharacter(character)
+    MovementState.positionHistory = {}
+    MovementState.lastUpdateTime = 0
+    MovementState.lastCorrectionTime = 0
+    MovementState.isBeingCorrected = false
     
-    -- Monitor for new additions
-    character.DescendantAdded:Connect(function(obj)
-        safeCall(processObject, obj)
+    local humanoid = character:WaitForChild("Humanoid")
+    MovementState.originalJumpPower = humanoid.JumpPower
+    MovementState.lastGroundY = character:WaitForChild("HumanoidRootPart").Position.Y
+    
+    -- Main update loop
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not character.Parent then
+            connection:Disconnect()
+            return
+        end
+        
+        local currentTime = getTimestamp()
+        if currentTime - MovementState.lastUpdateTime >= CONFIG.POSITION_UPDATE_INTERVAL then
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                updatePositionHistory(rootPart.Position)
+                checkSpeed(character)
+                -- Check for head sitting periodically
+                if currentTime % CONFIG.HEAD_SIT_CHECK_INTERVAL < 0.1 then
+                    checkHeadSitting(character)
+                end
+            end
+            MovementState.lastUpdateTime = currentTime
+        end
     end)
 end
 
--- Clean up processed objects
-local function cleanupProcessedObjects()
-    table.clear(processedObjects)
+-- Event connections
+LocalPlayer.CharacterAdded:Connect(initializeCharacter)
+if LocalPlayer.Character then
+    initializeCharacter(LocalPlayer.Character)
 end
-
--- Monitor player's character
-player.CharacterAdded:Connect(function(character)
-    cleanupProcessedObjects()
-    safeCall(monitorCharacter, character)
-    
-    -- Monitor backpack
-    if player:FindFirstChild("Backpack") then
-        player.Backpack.ChildAdded:Connect(function(child)
-            if child:IsA("Tool") then
-                safeCall(processObject, child)
-            end
-        end)
-    end
-end)
-
--- Initial setup for existing character
-if player.Character then
-    safeCall(monitorCharacter, player.Character)
-end
-
--- Periodic check using RunService
-local lastCheck = 0
-local checkInterval = 1 -- Check every second
-
-RunService.Heartbeat:Connect(function()
-    local currentTime = tick()
-    if currentTime - lastCheck >= checkInterval then
-        lastCheck = currentTime
-        
-        if isValidInstance(player.Character) then
-            safeCall(monitorCharacter, player.Character)
-        end
-    end
-end)
