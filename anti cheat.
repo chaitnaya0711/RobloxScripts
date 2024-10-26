@@ -40,8 +40,6 @@ local function safeCall(func, ...)
     if not success then
         warn("Error in anti-exploit system:", result)
         print("Function call failed. Error:", result)
-    else
-        print("Function call successful:", func)
     end
     return success, result
 end
@@ -71,25 +69,19 @@ end
 
 -- Validate instance
 local function isValidInstance(obj)
-    local valid = typeof(obj) == "Instance" and obj.Parent ~= nil
-    print("Validating instance:", obj:GetFullName(), "Valid:", valid)
-    return valid
+    return typeof(obj) == "Instance" and obj.Parent ~= nil
 end
 
 -- Process individual object
 local function processObject(obj)
-    print("Processing object:", obj:GetFullName())
-    
     if not isValidInstance(obj) then return end
     
     local objId = tostring(obj:GetFullName())
     if processedObjects[objId] then 
-        print("Object already processed:", objId)
-        return 
+        return -- Prevent processing the same object multiple times
     end
     
     processedObjects[objId] = true
-    print("Added object to processedObjects:", objId)
     
     -- Check for suspicious scripts
     if (obj:IsA("Script") or obj:IsA("LocalScript")) then
@@ -97,37 +89,15 @@ local function processObject(obj)
             return getfenv(obj)
         end)
         
-        if success then
-            print("Successfully retrieved environment for object:", objId)
-            if env ~= getfenv() then
-                print("Suspicious environment detected for:", objId)
-                checkForExploits()
-            end
-        else
-            print("Failed to retrieve environment for object:", objId)
+        if success and env ~= getfenv() then
+            checkForExploits()
         end
-    end
-    
-    -- Check for suspicious properties or behaviors
-    if obj:IsA("BasePart") then
-        print("Monitoring BasePart for unusual size changes:", objId)
-        -- Monitor for unusual size changes
-        local connection
-        connection = obj:GetPropertyChangedSignal("Size"):Connect(function()
-            print("Size changed for object:", objId, "New Size:", obj.Size)
-            if obj.Size.Magnitude > 100 then  -- Adjust threshold as needed
-                print("Unusual size detected for object:", objId)
-                checkForExploits()
-            end
-        end)
     end
 end
 
 -- Monitor character and its descendants
 local function monitorCharacter(character)
-    print("Monitoring character:", character:GetFullName())
     if not isValidInstance(character) or not character:IsA("Model") then 
-        print("Invalid character instance. Exiting monitorCharacter.")
         return 
     end
     
@@ -138,20 +108,17 @@ local function monitorCharacter(character)
     
     -- Monitor for new additions
     character.DescendantAdded:Connect(function(obj)
-        print("New object added to character:", obj:GetFullName())
         safeCall(processObject, obj)
     end)
 end
 
 -- Clean up processed objects
 local function cleanupProcessedObjects()
-    print("Cleaning up processed objects.")
     table.clear(processedObjects)
 end
 
 -- Monitor player's character
 player.CharacterAdded:Connect(function(character)
-    print("Player's character added:", character:GetFullName())
     cleanupProcessedObjects()
     safeCall(monitorCharacter, character)
     
@@ -159,7 +126,6 @@ player.CharacterAdded:Connect(function(character)
     if player:FindFirstChild("Backpack") then
         player.Backpack.ChildAdded:Connect(function(child)
             if child:IsA("Tool") then
-                print("New tool added to backpack:", child:GetFullName())
                 safeCall(processObject, child)
             end
         end)
@@ -168,14 +134,12 @@ end)
 
 -- Initial setup for existing character
 if player.Character then
-    print("Monitoring existing character:", player.Character:GetFullName())
     safeCall(monitorCharacter, player.Character)
 end
 
 -- Periodic check using RunService
 local lastCheck = 0
 local checkInterval = 1 -- Check every second
-print("Setting up periodic checks with interval:", checkInterval)
 
 RunService.Heartbeat:Connect(function()
     local currentTime = tick()
@@ -183,10 +147,7 @@ RunService.Heartbeat:Connect(function()
         lastCheck = currentTime
         
         if isValidInstance(player.Character) then
-            print("Periodic check: Monitoring character:", player.Character:GetFullName())
             safeCall(monitorCharacter, player.Character)
-        else
-            print("Invalid character during periodic check.")
         end
     end
 end)
