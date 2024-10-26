@@ -1,46 +1,192 @@
-local player = game.Players.LocalPlayer
-local exploitAttempts = 0  
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-local function displayWarning()
-    warn("Warning: Exploit attempt detected! Further attempts will result in a kick.")
+-- Only run on client
+if not RunService:IsClient() then 
+    print("Script is not running on the client. Exiting.")
+    return 
 end
 
+local player = Players.LocalPlayer
+local exploitAttempts = 0
+local maxAttempts = 3  -- Set a reasonable maximum number of attempts
+print("Max exploit attempts set to:", maxAttempts)
+
+-- Create a table to track processed objects to prevent duplicate checks
+local processedObjects = {}
+print("Initialized processedObjects table.")
+
+-- Debounce system to prevent spam
+local lastWarningTime = 0
+local warningCooldown = 3 -- seconds
+print("Warning cooldown set to:", warningCooldown)
+
+-- Function to display warning to player
+local function displayWarning()
+    local currentTime = tick()
+    print("Attempting to display warning...")
+    if currentTime - lastWarningTime >= warningCooldown then
+        lastWarningTime = currentTime
+        warn("Warning: Suspicious activity detected! Further attempts will result in a kick.")
+        print("Warning displayed to player.")
+    else
+        print("Warning not displayed due to cooldown.")
+    end
+end
+
+-- Safe error handling wrapper
+local function safeCall(func, ...)
+    local success, result = pcall(func, ...)
+    if not success then
+        warn("Error in anti-exploit system:", result)
+        print("Function call failed. Error:", result)
+    else
+        print("Function call successful:", func)
+    end
+    return success, result
+end
+
+-- Check for exploit attempts
 local function checkForExploits()
+    print("Checking for exploit attempts...")
+    if exploitAttempts >= maxAttempts then 
+        print("Maximum exploit attempts reached. No further checks.")
+        return 
+    end
+    
     exploitAttempts = exploitAttempts + 1
+    print("Incremented exploit attempts:", exploitAttempts)
+    
     if exploitAttempts == 1 then
         displayWarning()
-    elseif exploitAttempts >= 2 then
-        player:Kick("Nice try, cheater! You've been kicked for repeated exploit attempts.")
+    elseif exploitAttempts >= maxAttempts then
+        print("Maximum exploit attempts reached. Kicking player...")
+        task.delay(0.1, function()
+            safeCall(function()
+                player:Kick("\nSuspicious activity detected.\nPlease rejoin if this was a mistake.")
+            end)
+        end)
     end
 end
 
-player.CharacterAdded:Connect(function(character)
-    local function monitorCharacter()
-        for _, obj in pairs(character:GetDescendants()) do
-            if obj:IsA("Script") or obj:IsA("LocalScript") then
+-- Validate instance
+local function isValidInstance(obj)
+    local valid = typeof(obj) == "Instance" and obj.Parent ~= nil
+    print("Validating instance:", obj:GetFullName(), "Valid:", valid)
+    return valid
+end
+
+-- Process individual object
+local function processObject(obj)
+    print("Processing object:", obj:GetFullName())
+    
+    if not isValidInstance(obj) then return end
+    
+    local objId = tostring(obj:GetFullName())
+    if processedObjects[objId] then 
+        print("Object already processed:", objId)
+        return 
+    end
+    
+    processedObjects[objId] = true
+    print("Added object to processedObjects:", objId)
+    
+    -- Check for suspicious scripts
+    if (obj:IsA("Script") or obj:IsA("LocalScript")) then
+        local success, env = pcall(function()
+            return getfenv(obj)
+        end)
+        
+        if success then
+            print("Successfully retrieved environment for object:", objId)
+            if env ~= getfenv() then
+                print("Suspicious environment detected for:", objId)
                 checkForExploits()
-                break
             end
+        else
+            print("Failed to retrieve environment for object:", objId)
         end
     end
-    character.ChildAdded:Connect(function()
-        monitorCharacter()
+    
+    -- Check for suspicious properties or behaviors
+    if obj:IsA("BasePart") then
+        print("Monitoring BasePart for unusual size changes:", objId)
+        -- Monitor for unusual size changes
+        local connection
+        connection = obj:GetPropertyChangedSignal("Size"):Connect(function()
+            print("Size changed for object:", objId, "New Size:", obj.Size)
+            if obj.Size.Magnitude > 100 then  -- Adjust threshold as needed
+                print("Unusual size detected for object:", objId)
+                checkForExploits()
+            end
+        end)
+    end
+end
+
+-- Monitor character and its descendants
+local function monitorCharacter(character)
+    print("Monitoring character:", character:GetFullName())
+    if not isValidInstance(character) or not character:IsA("Model") then 
+        print("Invalid character instance. Exiting monitorCharacter.")
+        return 
+    end
+    
+    -- Process existing objects
+    for _, obj in ipairs(character:GetDescendants()) do
+        safeCall(processObject, obj)
+    end
+    
+    -- Monitor for new additions
+    character.DescendantAdded:Connect(function(obj)
+        print("New object added to character:", obj:GetFullName())
+        safeCall(processObject, obj)
     end)
-    monitorCharacter()
-    player.Backpack.ChildAdded:Connect(function(child)
-        if child:IsA("Tool") then
-            checkForExploits()
-        end
-    end)
+end
+
+-- Clean up processed objects
+local function cleanupProcessedObjects()
+    print("Cleaning up processed objects.")
+    table.clear(processedObjects)
+end
+
+-- Monitor player's character
+player.CharacterAdded:Connect(function(character)
+    print("Player's character added:", character:GetFullName())
+    cleanupProcessedObjects()
+    safeCall(monitorCharacter, character)
+    
+    -- Monitor backpack
+    if player:FindFirstChild("Backpack") then
+        player.Backpack.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") then
+                print("New tool added to backpack:", child:GetFullName())
+                safeCall(processObject, child)
+            end
+        end)
+    end
 end)
 
-while wait(1) do
-    if player.Character then
-        for _, obj in pairs(player.Character:GetDescendants()) do
-            if obj:IsA("Script") or obj:IsA("LocalScript") then
-                checkForExploits()
-                break
-            end
+-- Initial setup for existing character
+if player.Character then
+    print("Monitoring existing character:", player.Character:GetFullName())
+    safeCall(monitorCharacter, player.Character)
+end
+
+-- Periodic check using RunService
+local lastCheck = 0
+local checkInterval = 1 -- Check every second
+print("Setting up periodic checks with interval:", checkInterval)
+
+RunService.Heartbeat:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastCheck >= checkInterval then
+        lastCheck = currentTime
+        
+        if isValidInstance(player.Character) then
+            print("Periodic check: Monitoring character:", player.Character:GetFullName())
+            safeCall(monitorCharacter, player.Character)
+        else
+            print("Invalid character during periodic check.")
         end
     end
-end
+end)
