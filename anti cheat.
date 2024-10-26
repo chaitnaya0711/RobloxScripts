@@ -1,0 +1,46 @@
+local player = game.Players.LocalPlayer
+local exploitAttempts = 0  
+
+local function displayWarning()
+    warn("Warning: Exploit attempt detected! Further attempts will result in a kick.")
+end
+
+local function checkForExploits()
+    exploitAttempts = exploitAttempts + 1
+    if exploitAttempts == 1 then
+        displayWarning()
+    elseif exploitAttempts >= 2 then
+        player:Kick("Nice try, cheater! You've been kicked for repeated exploit attempts.")
+    end
+end
+
+player.CharacterAdded:Connect(function(character)
+    local function monitorCharacter()
+        for _, obj in pairs(character:GetDescendants()) do
+            if obj:IsA("Script") or obj:IsA("LocalScript") then
+                checkForExploits()
+                break
+            end
+        end
+    end
+    character.ChildAdded:Connect(function()
+        monitorCharacter()
+    end)
+    monitorCharacter()
+    player.Backpack.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            checkForExploits()
+        end
+    end)
+end)
+
+while wait(1) do
+    if player.Character then
+        for _, obj in pairs(player.Character:GetDescendants()) do
+            if obj:IsA("Script") or obj:IsA("LocalScript") then
+                checkForExploits()
+                break
+            end
+        end
+    end
+end
