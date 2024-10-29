@@ -1,0 +1,373 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Configuration
+local CONFIG = {
+    WAYPOINT_DISPLAY = {
+        SPHERE_SIZE = Vector3.new(2, 2, 2),
+        SPHERE_COLOR = Color3.fromRGB(0, 162, 255),
+        LINE_COLOR = Color3.fromRGB(255, 162, 0),
+        LINE_THICKNESS = 0.3
+    },
+    MOVEMENT = {
+        TWEEN_TIME = 1.5,
+        TWEEN_STYLE = Enum.EasingStyle.Quad,
+        TWEEN_DIRECTION = Enum.EasingDirection.InOut,
+        HEIGHT_OFFSET = 3
+    },
+    UI = {
+        BUTTON_SIZE = UDim2.new(0, 120, 0, 40),
+        BUTTON_COLOR = Color3.fromRGB(52, 152, 219),
+        BUTTON_HOVER_COLOR = Color3.fromRGB(41, 128, 185),
+        TEXT_COLOR = Color3.fromRGB(255, 255, 255),
+        FONT = Enum.Font.GothamSemibold,
+        TEXT_SIZE = 14
+    }
+}
+
+-- Waypoint System Class
+local WaypointSystem = {}
+WaypointSystem.__index = WaypointSystem
+
+function WaypointSystem.new()
+    local self = setmetatable({}, WaypointSystem)
+    self.waypoints = {}
+    self.visualWaypoints = {}
+    self.lines = {}
+    self.isRunning = false
+    self.isRecording = false
+    self.selectedWaypointIndex = nil
+    self:setupUI()
+    self:setupConnections()
+    return self
+end
+
+function WaypointSystem:setupUI()
+    -- Create main ScreenGui
+    self.gui = Instance.new("ScreenGui")
+    self.gui.Name = "WaypointSystem"
+    self.gui.ResetOnSpawn = false
+    self.gui.Parent = player:WaitForChild("PlayerGui")
+
+    -- Create main frame
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 400, 0, 60)
+    mainFrame.Position = UDim2.new(0.5, -200, 0, 10)
+    mainFrame.BackgroundTransparency = 0.5
+    mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    mainFrame.Parent = self.gui
+
+    -- Add corner radius
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = mainFrame
+
+    -- Create buttons container
+    local buttonsContainer = Instance.new("Frame")
+    buttonsContainer.Name = "ButtonsContainer"
+    buttonsContainer.Size = UDim2.new(1, -20, 1, -20)
+    buttonsContainer.Position = UDim2.new(0, 10, 0, 10)
+    buttonsContainer.BackgroundTransparency = 1
+    buttonsContainer.Parent = mainFrame
+
+    -- Create list layout
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.Padding = UDim.new(0, 10)
+    layout.Parent = buttonsContainer
+
+    -- Create buttons
+    self.buttons = {
+        self:createButton("Record", "Record Path", buttonsContainer),
+        self:createButton("Add", "Add Waypoint", buttonsContainer),
+        self:createButton("Run", "Run Path", buttonsContainer),
+        self:createButton("Clear", "Clear Path", buttonsContainer),
+        self:createButton("Save", "Save Path", buttonsContainer),
+        self:createButton("Load", "Load Path", buttonsContainer)
+    }
+end
+
+function WaypointSystem:createButton(name, text, parent)
+    local button = Instance.new("TextButton")
+    button.Name = name .. "Button"
+    button.Size = UDim2.new(0, 60, 1, 0)
+    button.BackgroundColor3 = CONFIG.UI.BUTTON_COLOR
+    button.Text = text
+    button.TextColor3 = CONFIG.UI.TEXT_COLOR
+    button.Font = CONFIG.UI.FONT
+    button.TextSize = CONFIG.UI.TEXT_SIZE
+    button.AutoButtonColor = false
+    button.Parent = parent
+
+    -- Add corner radius
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = button
+
+    -- Add hover effect
+    button.MouseEnter:Connect(function()
+        game:GetService("TweenService"):Create(button, 
+            TweenInfo.new(0.2), 
+            {BackgroundColor3 = CONFIG.UI.BUTTON_HOVER_COLOR}
+        ):Play()
+    end)
+
+    button.MouseLeave:Connect(function()
+        game:GetService("TweenService"):Create(button, 
+            TweenInfo.new(0.2), 
+            {BackgroundColor3 = CONFIG.UI.BUTTON_COLOR}
+        ):Play()
+    end)
+
+    return button
+end
+
+function WaypointSystem:setupConnections()
+    -- Button connections
+    self.buttons[1].MouseButton1Click:Connect(function() self:toggleRecording() end)
+    self.buttons[2].MouseButton1Click:Connect(function() self:addWaypoint() end)
+    self.buttons[3].MouseButton1Click:Connect(function() self:runPath() end)
+    self.buttons[4].MouseButton1Click:Connect(function() self:clearWaypoints() end)
+    self.buttons[5].MouseButton1Click:Connect(function() self:savePath() end)
+    self.buttons[6].MouseButton1Click:Connect(function() self:loadPath() end)
+
+    -- Recording mode connections
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.E and self.isRecording then
+            self:addWaypoint()
+        end
+    end)
+
+    -- Character respawn handling
+    player.CharacterAdded:Connect(function(newCharacter)
+        character = newCharacter
+        humanoid = character:WaitForChild("Humanoid")
+    end)
+end
+
+function WaypointSystem:toggleRecording()
+    self.isRecording = not self.isRecording
+    self.buttons[1].Text = self.isRecording and "Stop" or "Record"
+    self.buttons[1].BackgroundColor3 = self.isRecording and 
+        Color3.fromRGB(231, 76, 60) or 
+        CONFIG.UI.BUTTON_COLOR
+end
+
+function WaypointSystem:createWaypointVisual(position, index)
+    -- Create sphere
+    local sphere = Instance.new("Part")
+    sphere.Shape = Enum.PartType.Ball
+    sphere.Size = CONFIG.WAYPOINT_DISPLAY.SPHERE_SIZE
+    sphere.Position = position
+    sphere.Anchored = true
+    sphere.CanCollide = false
+    sphere.Color = CONFIG.WAYPOINT_DISPLAY.SPHERE_COLOR
+    sphere.Transparency = 0.5
+    sphere.Parent = workspace
+
+    -- Add waypoint number
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Size = UDim2.new(0, 50, 0, 50)
+    billboardGui.AlwaysOnTop = true
+    billboardGui.Parent = sphere
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = tostring(index)
+    textLabel.TextColor3 = Color3.new(1, 1, 1)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.TextSize = 20
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.Parent = billboardGui
+
+    return sphere
+end
+
+function WaypointSystem:updatePathVisualization()
+    -- Clear existing lines
+    for _, line in ipairs(self.lines) do
+        line:Destroy()
+    end
+    self.lines = {}
+
+    -- Create new lines between waypoints
+    for i = 1, #self.waypoints - 1 do
+        local startPos = self.waypoints[i]
+        local endPos = self.waypoints[i + 1]
+        
+        -- Create line using a part
+        local distance = (endPos - startPos).Magnitude
+        local midPoint = startPos:Lerp(endPos, 0.5)
+        
+        local line = Instance.new("Part")
+        line.Name = "PathLine"
+        line.Anchored = true
+        line.CanCollide = false
+        line.Size = Vector3.new(CONFIG.WAYPOINT_DISPLAY.LINE_THICKNESS, CONFIG.WAYPOINT_DISPLAY.LINE_THICKNESS, distance)
+        line.CFrame = CFrame.new(midPoint, endPos)
+        line.Color = CONFIG.WAYPOINT_DISPLAY.LINE_COLOR
+        line.Transparency = 0.5
+        line.Parent = workspace
+        
+        table.insert(self.lines, line)
+    end
+end
+
+function WaypointSystem:addWaypoint()
+    if not character or not character.PrimaryPart then return end
+    
+    local position = character.PrimaryPart.Position
+    table.insert(self.waypoints, position)
+    
+    -- Create visual waypoint
+    local visualWaypoint = self:createWaypointVisual(position, #self.waypoints)
+    table.insert(self.visualWaypoints, visualWaypoint)
+    
+    -- Update path visualization
+    self:updatePathVisualization()
+end
+
+function WaypointSystem:clearWaypoints()
+    -- Clear visual elements
+    for _, waypoint in ipairs(self.visualWaypoints) do
+        waypoint:Destroy()
+    end
+    for _, line in ipairs(self.lines) do
+        line:Destroy()
+    end
+    
+    -- Clear tables
+    self.waypoints = {}
+    self.visualWaypoints = {}
+    self.lines = {}
+end
+
+function WaypointSystem:runPath()
+    if self.isRunning or #self.waypoints < 2 then return end
+    self.isRunning = true
+    
+    -- Disable buttons during path running
+    for _, button in ipairs(self.buttons) do
+        button.AutoButtonColor = false
+        button.BackgroundColor3 = Color3.fromRGB(127, 127, 127)
+    end
+    
+    -- Run path with tweening
+    for i = 1, #self.waypoints do
+        local targetPos = self.waypoints[i]
+        local startPos = character.PrimaryPart.Position
+        
+        -- Calculate path points with height offset for smoother movement
+        local midPoint = startPos:Lerp(targetPos, 0.5) + Vector3.new(0, CONFIG.MOVEMENT.HEIGHT_OFFSET, 0)
+        
+        -- Create and play tween
+        local tween = TweenService:Create(
+            character.PrimaryPart,
+            TweenInfo.new(
+                CONFIG.MOVEMENT.TWEEN_TIME,
+                CONFIG.MOVEMENT.TWEEN_STYLE,
+                CONFIG.MOVEMENT.TWEEN_DIRECTION
+            ),
+            {CFrame = CFrame.new(targetPos)}
+        )
+        
+        tween:Play()
+        tween.Completed:Wait()
+    end
+    
+    -- Re-enable buttons
+    for _, button in ipairs(self.buttons) do
+        button.AutoButtonColor = true
+        button.BackgroundColor3 = CONFIG.UI.BUTTON_COLOR
+    end
+    
+    self.isRunning = false
+end
+
+function WaypointSystem:savePath()
+    -- Convert waypoints to string format
+    local waypointStrings = {}
+    for _, waypoint in ipairs(self.waypoints) do
+        table.insert(waypointStrings, string.format("%.2f,%.2f,%.2f", waypoint.X, waypoint.Y, waypoint.Z))
+    end
+    
+    -- Save to player data
+    local success, error = pcall(function()
+        player:SetAttribute("SavedPath", table.concat(waypointStrings, "|"))
+    end)
+    
+    if success then
+        -- Show success feedback
+        self:showNotification("Path saved successfully!", Color3.fromRGB(46, 204, 113))
+    else
+        -- Show error feedback
+        self:showNotification("Failed to save path", Color3.fromRGB(231, 76, 60))
+    end
+end
+
+function WaypointSystem:loadPath()
+    local savedPath = player:GetAttribute("SavedPath")
+    if not savedPath then
+        self:showNotification("No saved path found", Color3.fromRGB(231, 76, 60))
+        return
+    end
+    
+    -- Clear current waypoints
+    self:clearWaypoints()
+    
+    -- Parse saved waypoints
+    for waypointStr in string.gmatch(savedPath, "[^|]+") do
+        local x, y, z = string.match(waypointStr, "([^,]+),([^,]+),([^,]+)")
+        local position = Vector3.new(tonumber(x), tonumber(y), tonumber(z))
+        table.insert(self.waypoints, position)
+        
+        -- Create visual waypoint
+        local visualWaypoint = self:createWaypointVisual(position, #self.waypoints)
+        table.insert(self.visualWaypoints, visualWaypoint)
+    end
+    
+    -- Update path visualization
+    self:updatePathVisualization()
+    self:showNotification("Path loaded successfully!", Color3.fromRGB(46, 204, 113))
+end
+
+function WaypointSystem:showNotification(message, color)
+    local notification = Instance.new("TextLabel")
+    notification.Size = UDim2.new(0, 200, 0, 40)
+    notification.Position = UDim2.new(0.5, -100, 0, 80)
+    notification.BackgroundColor3 = color
+    notification.TextColor3 = Color3.new(1, 1, 1)
+    notification.Text = message
+    notification.TextSize = 16
+    notification.Font = Enum.Font.GothamSemibold
+    notification.Parent = self.gui
+    
+    -- Add corner radius
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = notification
+    
+    -- Fade out animation
+    game:GetService("TweenService"):Create(
+        notification,
+        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 2),
+        {TextTransparency = 1, BackgroundTransparency = 1}
+    ):Play()
+    
+    -- Clean up
+    game:GetService("Debris"):AddItem(notification, 3)
+end
+
+-- Initialize the system
+local waypointSystem = WaypointSystem.new()
+
+return waypointSystem
