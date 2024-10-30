@@ -1,5 +1,196 @@
-Script to get map size:
-Brookhaven:Map Size: 6993 x 2855 x 6971
-Naval Warfare:Map Size: 10241 x 492 x 16385
-A literal baseplate:Map Size: 2044 x 6067815 x 2048
-Break In 2(Lobby):Map Size: 2044 x 652 x 2044
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+-- Create folder for waypoints
+local waypointFolder = Instance.new("Folder")
+waypointFolder.Name = "Waypoints"
+waypointFolder.Parent = workspace
+
+-- Get the local player
+local player = Players.LocalPlayer
+
+-- Create UI elements (kept the same as requested)
+local screenGui = Instance.new("ScreenGui")
+screenGui.ResetOnSpawn = false  -- Prevent GUI from disappearing on death
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 120)
+frame.Position = UDim2.new(0, 10, 0.5, -60)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.Parent = screenGui
+
+-- Buttons (kept the same as requested)
+local addButton = Instance.new("TextButton")
+addButton.Size = UDim2.new(0.9, 0, 0.3, 0)
+addButton.Position = UDim2.new(0.05, 0, 0.05, 0)
+addButton.Text = "Add Waypoint"
+addButton.Parent = frame
+
+local removeButton = Instance.new("TextButton")
+removeButton.Size = UDim2.new(0.9, 0, 0.3, 0)
+removeButton.Position = UDim2.new(0.05, 0, 0.35, 0)
+removeButton.Text = "Remove Last Waypoint"
+removeButton.Parent = frame
+
+local startButton = Instance.new("TextButton")
+startButton.Size = UDim2.new(0.9, 0, 0.3, 0)
+startButton.Position = UDim2.new(0.05, 0, 0.65, 0)
+startButton.Text = "Start Navigation"
+startButton.Parent = frame
+
+-- Enhanced variables
+local waypoints = {}
+local isNavigating = false
+local currentWaypointIndex = 1
+local movementSpeed = 100 -- Increased speed as requested
+
+-- Advanced pathfinding functions
+local function getPlayerPosition()
+    local character = player.Character
+    if not character then return nil end
+    
+    -- Check if player is in a vehicle
+    local humanoid = character:FindFirstChild("Humanoid")
+    if humanoid and humanoid.SeatPart then
+        return humanoid.SeatPart.Position
+    end
+    
+    -- Check for HumanoidRootPart
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if rootPart then
+        return rootPart.Position
+    end
+    
+    return nil
+end
+
+local function createWaypointMarker(position)
+    local part = Instance.new("Part")
+    part.Anchored = true
+    part.CanCollide = false
+    part.Size = Vector3.new(2, 2, 2)
+    part.Position = position
+    part.BrickColor = BrickColor.new("Really blue")
+    part.Shape = Enum.PartType.Ball
+    part.Parent = waypointFolder
+    return part
+end
+
+local function addWaypoint()
+    local position = getPlayerPosition()
+    if position then
+        local marker = createWaypointMarker(position)
+        table.insert(waypoints, {
+            position = position,
+            marker = marker
+        })
+    end
+end
+
+local function removeLastWaypoint()
+    if #waypoints > 0 then
+        local lastWaypoint = table.remove(waypoints)
+        lastWaypoint.marker:Destroy()
+    end
+end
+
+-- Enhanced movement function with obstacle avoidance
+local function moveToWaypoint(character, targetPosition)
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    
+    -- Set high walk speed
+    humanoid.WalkSpeed = movementSpeed
+    
+    -- Create path
+    local path = game:GetService("PathfindingService"):CreatePath({
+        AgentRadius = 2,
+        AgentHeight = 5,
+        AgentCanJump = true
+    })
+    
+    -- Compute path
+    pcall(function()
+        path:ComputeAsync(character.HumanoidRootPart.Position, targetPosition)
+    end)
+    
+    -- Follow path
+    if path.Status == Enum.PathStatus.Success then
+        local waypoints = path:GetWaypoints()
+        for _, waypoint in ipairs(waypoints) do
+            humanoid:MoveTo(waypoint.Position)
+            local success = humanoid.MoveToFinished:Wait()
+            if not success then break end
+        end
+    else
+        -- Direct movement if pathfinding fails
+        humanoid:MoveTo(targetPosition)
+    end
+end
+
+-- Enhanced navigation system
+local function startNavigation()
+    if #waypoints == 0 then return end
+    
+    isNavigating = true
+    currentWaypointIndex = 1
+    
+    -- Persistent navigation loop
+    local function setupNavigationLoop()
+        local connection
+        connection = RunService.Heartbeat:Connect(function()
+            if not isNavigating then
+                connection:Disconnect()
+                return
+            end
+            
+            local character = player.Character
+            if not character then return end
+            
+            -- Get current position (works in vehicles too)
+            local currentPos = getPlayerPosition()
+            if not currentPos then return end
+            
+            local currentWaypoint = waypoints[currentWaypointIndex]
+            if not currentWaypoint then
+                isNavigating = false
+                connection:Disconnect()
+                return
+            end
+            
+            local distance = (currentPos - currentWaypoint.position).Magnitude
+            
+            if distance < 5 then -- Increased tolerance
+                currentWaypointIndex = currentWaypointIndex + 1
+                if currentWaypointIndex > #waypoints then
+                    isNavigating = false
+                    connection:Disconnect()
+                    return
+                end
+            end
+            
+            moveToWaypoint(character, currentWaypoint.position)
+        end)
+    end
+    
+    -- Set up navigation that persists through deaths
+    setupNavigationLoop()
+    player.CharacterAdded:Connect(function()
+        if isNavigating then
+            setupNavigationLoop()
+        end
+    end)
+end
+
+-- Button event handlers
+addButton.MouseButton1Click:Connect(addWaypoint)
+removeButton.MouseButton1Click:Connect(removeLastWaypoint)
+startButton.MouseButton1Click:Connect(function()
+    if not isNavigating then
+        startNavigation()
+    else
+        isNavigating = false
+    end
+end)
