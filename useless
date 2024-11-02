@@ -1,0 +1,151 @@
+-- Local Script - Place this in StarterGui
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+
+-- Wait for player to load
+if not player then
+    player = Players.LocalPlayer
+end
+
+-- Create the welcome GUI
+local welcomeGui = Instance.new("ScreenGui")
+welcomeGui.Name = "WelcomeGui"
+welcomeGui.ResetOnSpawn = false
+welcomeGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Main frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0.8, 0, 0.7, 0)
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = welcomeGui
+
+-- Add corner radius to main frame
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0.02, 0)
+corner.Parent = mainFrame
+
+-- Welcome text
+local welcomeText = Instance.new("TextLabel")
+welcomeText.Name = "WelcomeText"
+welcomeText.Size = UDim2.new(0.8, 0, 0.2, 0)
+welcomeText.Position = UDim2.new(0.5, 0, 0.15, 0)
+welcomeText.AnchorPoint = Vector2.new(0.5, 0)
+welcomeText.BackgroundTransparency = 1
+welcomeText.Font = Enum.Font.GothamBold
+welcomeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+welcomeText.TextScaled = true
+welcomeText.Text = "Welcome, " .. player.Name .. "!"
+welcomeText.Parent = mainFrame
+
+-- Description text
+local descriptionText = Instance.new("TextLabel")
+descriptionText.Name = "DescriptionText"
+descriptionText.Size = UDim2.new(0.8, 0, 0.3, 0)
+descriptionText.Position = UDim2.new(0.5, 0, 0.4, 0)
+descriptionText.AnchorPoint = Vector2.new(0.5, 0)
+descriptionText.BackgroundTransparency = 1
+descriptionText.Font = Enum.Font.Gotham
+descriptionText.TextColor3 = Color3.fromRGB(200, 200, 200)
+descriptionText.TextScaled = true
+descriptionText.Text = "Get ready for an amazing adventure!\nExplore, build, and have fun!"
+descriptionText.Parent = mainFrame
+
+-- Play button
+local playButton = Instance.new("TextButton")
+playButton.Name = "PlayButton"
+playButton.Size = UDim2.new(0.3, 0, 0.1, 0)
+playButton.Position = UDim2.new(0.5, 0, 0.8, 0)
+playButton.AnchorPoint = Vector2.new(0.5, 0)
+playButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+playButton.Font = Enum.Font.GothamBold
+playButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+playButton.TextScaled = true
+playButton.Text = "Let's Play!"
+playButton.Parent = mainFrame
+
+-- Add corner radius to button
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0.2, 0)
+buttonCorner.Parent = playButton
+
+-- Add gradient to main frame for extra style
+local gradient = Instance.new("UIGradient")
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 45)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(45, 45, 55))
+}
+gradient.Rotation = 45
+gradient.Parent = mainFrame
+
+-- Button hover effect
+playButton.MouseEnter:Connect(function()
+    TweenService:Create(playButton, TweenInfo.new(0.3), {
+        BackgroundColor3 = Color3.fromRGB(0, 140, 210)
+    }):Play()
+end)
+
+playButton.MouseLeave:Connect(function()
+    TweenService:Create(playButton, TweenInfo.new(0.3), {
+        BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    }):Play()
+end)
+
+-- Button click handler
+playButton.MouseButton1Click:Connect(function()
+    -- Fade out animation
+    local fadeOut = TweenService:Create(mainFrame, TweenInfo.new(0.5), {
+        BackgroundTransparency = 1
+    })
+    
+    -- Fade out all children
+    for _, child in ipairs(mainFrame:GetDescendants()) do
+        if child:IsA("TextLabel") or child:IsA("TextButton") then
+            TweenService:Create(child, TweenInfo.new(0.5), {
+                TextTransparency = 1,
+                BackgroundTransparency = 1
+            }):Play()
+        end
+    end
+    
+    fadeOut:Play()
+    wait(0.5)
+    welcomeGui:Destroy()
+end)
+
+-- Initial transparency for fade-in
+mainFrame.BackgroundTransparency = 1
+welcomeText.TextTransparency = 1
+descriptionText.TextTransparency = 1
+playButton.BackgroundTransparency = 1
+playButton.TextTransparency = 1
+
+-- Fade in animations
+wait(1) -- Wait a second after player joins before showing GUI
+
+TweenService:Create(mainFrame, TweenInfo.new(0.5), {
+    BackgroundTransparency = 0
+}):Play()
+
+wait(0.2)
+
+TweenService:Create(welcomeText, TweenInfo.new(0.5), {
+    TextTransparency = 0
+}):Play()
+
+wait(0.2)
+
+TweenService:Create(descriptionText, TweenInfo.new(0.5), {
+    TextTransparency = 0
+}):Play()
+
+wait(0.2)
+
+TweenService:Create(playButton, TweenInfo.new(0.5), {
+    BackgroundTransparency = 0,
+    TextTransparency = 0
+}):Play()
