@@ -1,4 +1,3 @@
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -33,6 +32,25 @@ speedLabel.TextXAlignment = Enum.TextXAlignment.Left
 speedLabel.TextYAlignment = Enum.TextYAlignment.Center
 speedLabel.Parent = container
 
+local unitToggleButton = Instance.new("TextButton")
+unitToggleButton.Name = "UnitToggleButton"
+unitToggleButton.Size = UDim2.new(0, 60, 0, 30)
+unitToggleButton.Position = UDim2.new(1, -70, 0, 5)
+unitToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+unitToggleButton.TextColor3 = Color3.new(1, 1, 1)
+unitToggleButton.Font = Enum.Font.Gotham
+unitToggleButton.TextSize = 14
+unitToggleButton.Text = "m/s"
+unitToggleButton.Parent = container
+
+-- Function to convert m/s to mph
+local function toMph(mps)
+    return mps * 2.23694
+end
+
+local unit = "m/s" -- Default unit
+
+-- Create the expand button
 local expandButton = Instance.new("ImageButton")
 expandButton.Name = "ExpandButton"
 expandButton.Size = UDim2.new(0, 30, 0, 30)
@@ -42,48 +60,6 @@ expandButton.Image = "rbxassetid://3926307971"
 expandButton.ImageRectOffset = Vector2.new(324, 364)
 expandButton.ImageRectSize = Vector2.new(36, 36)
 expandButton.Parent = container
-
-local fullContent = Instance.new("Frame")
-fullContent.Name = "FullContent"
-fullContent.Size = UDim2.new(1, 0, 0, 120)
-fullContent.Position = UDim2.new(0, 0, 1, 0)
-fullContent.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-fullContent.BackgroundTransparency = 0.1
-fullContent.Visible = false
-fullContent.Parent = container
-
-local trackedObjectLabel = Instance.new("TextLabel")
-trackedObjectLabel.Name = "TrackedObjectLabel"
-trackedObjectLabel.Size = UDim2.new(1, -20, 0, 30)
-trackedObjectLabel.Position = UDim2.new(0, 10, 0, 10)
-trackedObjectLabel.BackgroundTransparency = 1
-trackedObjectLabel.Font = Enum.Font.Gotham
-trackedObjectLabel.TextColor3 = Color3.new(1, 1, 1)
-trackedObjectLabel.TextSize = 14
-trackedObjectLabel.TextXAlignment = Enum.TextXAlignment.Left
-trackedObjectLabel.Parent = fullContent
-
-local removeMarkerButton = Instance.new("TextButton")
-removeMarkerButton.Name = "RemoveMarkerButton"
-removeMarkerButton.Size = UDim2.new(1, -20, 0, 40)
-removeMarkerButton.Position = UDim2.new(0, 10, 1, -50)
-removeMarkerButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-removeMarkerButton.Font = Enum.Font.GothamBold
-removeMarkerButton.TextColor3 = Color3.new(1, 1, 1)
-removeMarkerButton.TextSize = 14
-removeMarkerButton.Text = "Remove Marker"
-removeMarkerButton.Parent = fullContent
-
--- Round the corners of the container and buttons
-local function roundCorners(instance, radius)
-    local uiCorner = Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, radius)
-    uiCorner.Parent = instance
-end
-
-roundCorners(container, 10)
-roundCorners(fullContent, 10)
-roundCorners(removeMarkerButton, 8)
 
 -- Add a subtle glow effect
 local glowEffect = Instance.new("ImageLabel")
@@ -112,31 +88,30 @@ local function getSpeed(object)
     return 0
 end
 
--- Function to convert m/s to Mach
-local function getMach(speed)
-    return speed / 343 -- Assuming speed of sound is 343 m/s
-end
-
 -- Function to update speed display with smooth transitions
 local lastSpeed = 0
-local lastMach = 0
 local function updateSpeedDisplay()
     local speed = getSpeed(trackedObject)
-    local mach = getMach(speed)
+    
+    -- Update speed based on the selected unit
+    local displaySpeed = (unit == "m/s") and speed or toMph(speed)
 
-    -- Smooth the speed and mach values
-    lastSpeed = lastSpeed + (speed - lastSpeed) * 0.1
-    lastMach = lastMach + (mach - lastMach) * 0.1
+    lastSpeed = lastSpeed + (displaySpeed - lastSpeed) * 0.1
 
-    speedLabel.Text = string.format("%.2f m/s\nMach %.2f", lastSpeed, lastMach)
-    trackedObjectLabel.Text = string.format("Tracking: %s", trackedObjectName)
-
-    -- Change color based on speed
-    local speedRatio = math.min(lastSpeed / 343, 1)  -- Normalize to Mach 1
-    local color = Color3.new(1, 1 - speedRatio, 1 - speedRatio)
-    speedLabel.TextColor3 = color
-    glowEffect.ImageColor3 = color
+    speedLabel.Text = string.format("%.2f %s", lastSpeed, unit)
+    glowEffect.ImageColor3 = Color3.new(1, 1 - (lastSpeed / 343), 1 - (lastSpeed / 343)) -- Adjust color based on speed
 end
+
+-- Function to handle unit toggle button
+unitToggleButton.MouseButton1Click:Connect(function()
+    if unit == "m/s" then
+        unit = "mph"
+        unitToggleButton.Text = "mph"
+    else
+        unit = "m/s"
+        unitToggleButton.Text = "m/s"
+    end
+end)
 
 -- Function to create an animated marker
 local function createMarker(part)
@@ -158,9 +133,6 @@ local function createMarker(part)
     innerCircle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     innerCircle.BackgroundTransparency = 0.2
     innerCircle.Parent = marker
-
-    roundCorners(outerCircle, 25)
-    roundCorners(innerCircle, 15)
 
     -- Animate the marker
     spawn(function()
@@ -208,24 +180,18 @@ local function selectObject(object)
     end)
 end
 
--- Function to handle input
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or
-       input.UserInputType == Enum.UserInputType.Touch then
-        local position = input.Position
-        local unitRay = workspace.CurrentCamera:ScreenPointToRay(position.X, position.Y)
-        local ray = Ray.new(unitRay.Origin, unitRay.Direction * 1000)
-        local hit, hitPosition = workspace:FindPartOnRay(ray)
-
-        if hit and fullContent.Visible then
-            selectObject(hit)
-        end
-    end
-end)
-
 -- Remove marker button functionality
+local removeMarkerButton = Instance.new("TextButton")
+removeMarkerButton.Name = "RemoveMarkerButton"
+removeMarkerButton.Size = UDim2.new(1, -20, 0, 40)
+removeMarkerButton.Position = UDim2.new(0, 10, 1, -50)
+removeMarkerButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+removeMarkerButton.Font = Enum.Font.GothamBold
+removeMarkerButton.TextColor3 = Color3.new(1, 1, 1)
+removeMarkerButton.TextSize = 14
+removeMarkerButton.Text = "Remove Marker"
+removeMarkerButton.Parent = container
+
 removeMarkerButton.MouseButton1Click:Connect(function()
     if currentMarker then
         currentMarker:Destroy()
@@ -250,16 +216,8 @@ local dragInput
 local dragStart
 local startPos
 
-local function update(input)
-    local delta = input.Position - dragStart
-    local targetPosition = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-
-    local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    TweenService:Create(container, tweenInfo, {Position = targetPosition}):Play()
-end
-
 container.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
         dragStart = input.Position
         startPos = container.Position
@@ -272,46 +230,9 @@ container.InputBegan:Connect(function(input)
     end
 end)
 
-container.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
 UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        container.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-
--- Expand/collapse functionality with smooth animation
-local expanded = false
-expandButton.MouseButton1Click:Connect(function()
-    expanded = not expanded
-    local targetSize, targetRotation, targetContentTransparency
-
-    if expanded then
-        targetSize = UDim2.new(0, 250, 0, 160)
-        targetRotation = 180
-        fullContent.Visible = true
-        targetContentTransparency = 0
-    else
-        targetSize = UDim2.new(0, 250, 0, 40)
-        targetRotation = 0
-        targetContentTransparency = 1
-    end
-
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    TweenService:Create(container, tweenInfo, {Size = targetSize}):Play()
-    TweenService:Create(expandButton, tweenInfo, {Rotation = targetRotation}):Play()
-    TweenService:Create(fullContent, tweenInfo, {BackgroundTransparency = targetContentTransparency}):Play()
-
-    if not expanded then
-        wait(0.3)
-        fullContent.Visible = false
-    end
-end)
-
--- Entrance animation
-local entranceTween = TweenService:Create(container, TweenInfo.new(1, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -125, 0, 10)})
-entranceTween:Play()
