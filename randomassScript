@@ -4,31 +4,34 @@ local RunService = game:GetService("RunService")
 local UpdateFrequency = 1  -- Check every 1 second
 local currentTarget = nil
 local lockConnection = nil  -- Connection variable for camera lock
-local smoothSpeed = 0.1  -- Adjust for smoother lock-on
+local isLocked = false  -- To keep track of locking state
 
--- Create GUI
+-- Create GUI and persist across respawns
 local screenGui = Instance.new("ScreenGui")
+screenGui.ResetOnSpawn = false  -- Makes GUI persistent across respawns
 screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 -- "Lock In" button
 local LockButton = Instance.new("TextButton")
-LockButton.Size = UDim2.new(0, 100, 0, 50)
-LockButton.Position = UDim2.new(0.5, -50, 0, 50)
+LockButton.Size = UDim2.new(0, 120, 0, 40)
+LockButton.Position = UDim2.new(1, -140, 0, 10)
 LockButton.Text = "Lock In"
 LockButton.Parent = screenGui
 
 -- Health label
 local healthLabel = Instance.new("TextLabel")
-healthLabel.Size = UDim2.new(0.3, 0, 0.1, 0)
-healthLabel.Position = UDim2.new(0.35, 0, 0.1, 0)
+healthLabel.Size = UDim2.new(0, 200, 0, 40)
+healthLabel.Position = UDim2.new(1, -220, 0, 60)
 healthLabel.Text = "Player: [Name] - Health: [Health]"
 healthLabel.TextScaled = true
+healthLabel.BackgroundTransparency = 1
+healthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 healthLabel.Parent = screenGui
 
 -- Teleport button
 local teleportButton = Instance.new("TextButton")
-teleportButton.Size = UDim2.new(0.3, 0, 0.1, 0)
-teleportButton.Position = UDim2.new(0.35, 0, 0.25, 0)
+teleportButton.Size = UDim2.new(0, 120, 0, 40)
+teleportButton.Position = UDim2.new(1, -140, 0, 110)
 teleportButton.Text = "Teleport to Player"
 teleportButton.Visible = false
 teleportButton.Parent = screenGui
@@ -65,7 +68,7 @@ local function updateGui()
     end
 end
 
--- Function to lock onto a specified target with smoothing
+-- Function to lock onto a specified target
 local function lockOntoTarget(targetPlayer)
     -- Disconnect previous lock if it exists
     if lockConnection then
@@ -84,7 +87,7 @@ local function lockOntoTarget(targetPlayer)
                 currentTarget = nil
                 -- Switch to the player with the lowest health
                 local newTarget = getPlayerWithLowestHealth()
-                if newTarget then
+                if isLocked and newTarget then
                     lockOntoTarget(newTarget)
                 end
                 return
@@ -96,22 +99,41 @@ local function lockOntoTarget(targetPlayer)
                 currentTarget = nil
                 -- Switch to the player with the lowest health
                 local newTarget = getPlayerWithLowestHealth()
-                if newTarget then
+                if isLocked and newTarget then
                     lockOntoTarget(newTarget)
                 end
                 return
             end
 
-            -- Smoothly interpolate the camera position toward the target
-            local targetPosition = targetPart.Position
-            local direction = (targetPosition - camera.CFrame.Position).Unit
-            local newCFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + direction)
-            camera.CFrame = camera.CFrame:Lerp(newCFrame, smoothSpeed)
+            -- Continuously lock the camera onto the targetPart
+            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPart.Position)
         end)
     else
         warn("No valid target to lock onto.")
     end
 end
+
+-- Toggle lock state and update the button text
+local function toggleLock()
+    isLocked = not isLocked
+    LockButton.Text = isLocked and "Unlock" or "Lock In"
+
+    if isLocked then
+        local targetPlayer = getPlayerWithLowestHealth()
+        if targetPlayer then
+            lockOntoTarget(targetPlayer)
+        end
+    else
+        if lockConnection then
+            lockConnection:Disconnect()
+            lockConnection = nil
+        end
+        currentTarget = nil
+    end
+end
+
+-- Button click to toggle lock state
+LockButton.MouseButton1Click:Connect(toggleLock)
 
 -- Function to teleport to and lock onto the player with the lowest health
 local function teleportToPlayer(targetPlayer)
@@ -119,7 +141,9 @@ local function teleportToPlayer(targetPlayer)
         local targetPosition = targetPlayer.Character.HumanoidRootPart.Position
         LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(targetPosition))
 
-        -- Lock onto the player after teleporting
+        -- Enable lock-on and lock onto the player after teleporting
+        isLocked = true
+        LockButton.Text = "Unlock"
         lockOntoTarget(targetPlayer)
     end
 end
@@ -131,6 +155,28 @@ teleportButton.MouseButton1Click:Connect(function()
         teleportToPlayer(targetPlayer)
     end
 end)
+
+-- Function to handle player touch for auto-attack
+local function onPlayerTouched(hit)
+    local otherPlayer = Players:GetPlayerFromCharacter(hit.Parent)
+    if otherPlayer and otherPlayer ~= LocalPlayer then
+        -- Simulate attack or interaction
+        -- Call the actual attack function here, or simulate the effect
+        print("Attacked " .. otherPlayer.Name)
+    end
+end
+
+-- Connect the Touched event for the player's character when it respawns
+LocalPlayer.CharacterAdded:Connect(function(character)
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    humanoidRootPart.Touched:Connect(onPlayerTouched)
+end)
+
+-- Initialize with the current character's hitbox touch detection
+if LocalPlayer.Character then
+    local humanoidRootPart = LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+    humanoidRootPart.Touched:Connect(onPlayerTouched)
+end
 
 -- Update GUI periodically
 while true do
