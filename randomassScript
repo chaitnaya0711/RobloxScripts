@@ -1,185 +1,262 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local UpdateFrequency = 1  -- Check every 1 second
+local TweenService = game:GetService("TweenService")
+local UpdateFrequency = 1
 local currentTarget = nil
-local lockConnection = nil  -- Connection variable for camera lock
-local isLocked = false  -- To keep track of locking state
+local lockConnection = nil
+local isLocked = false
+local isRunning = true
 
--- Create GUI and persist across respawns
-local screenGui = Instance.new("ScreenGui")
-screenGui.ResetOnSpawn = false  -- Makes GUI persistent across respawns
-screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+-- Create GUI with error handling
+local function createGui()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "PlayerTrackerGui"
+    screenGui.ResetOnSpawn = false
+    
+    -- Remove existing GUI if it exists
+    local existingGui = LocalPlayer.PlayerGui:FindFirstChild("PlayerTrackerGui")
+    if existingGui then
+        existingGui:Destroy()
+    end
+    
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- "Lock In" button
-local LockButton = Instance.new("TextButton")
-LockButton.Size = UDim2.new(0, 120, 0, 40)
-LockButton.Position = UDim2.new(1, -140, 0, 10)
-LockButton.Text = "Lock In"
-LockButton.Parent = screenGui
+    local LockButton = Instance.new("TextButton")
+    LockButton.Size = UDim2.new(0, 120, 0, 40)
+    LockButton.Position = UDim2.new(1, -140, 0, 10)
+    LockButton.Text = "Lock In"
+    LockButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    LockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    LockButton.Parent = screenGui
 
--- Health label
-local healthLabel = Instance.new("TextLabel")
-healthLabel.Size = UDim2.new(0, 200, 0, 40)
-healthLabel.Position = UDim2.new(1, -220, 0, 60)
-healthLabel.Text = "Player: [Name] - Health: [Health]"
-healthLabel.TextScaled = true
-healthLabel.BackgroundTransparency = 1
-healthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-healthLabel.Parent = screenGui
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Size = UDim2.new(0, 200, 0, 40)
+    healthLabel.Position = UDim2.new(1, -220, 0, 60)
+    healthLabel.Text = "Waiting for target..."
+    healthLabel.TextScaled = true
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    healthLabel.Parent = screenGui
 
--- Teleport button
-local teleportButton = Instance.new("TextButton")
-teleportButton.Size = UDim2.new(0, 120, 0, 40)
-teleportButton.Position = UDim2.new(1, -140, 0, 110)
-teleportButton.Text = "Teleport to Player"
-teleportButton.Visible = false
-teleportButton.Parent = screenGui
+    local teleportButton = Instance.new("TextButton")
+    teleportButton.Size = UDim2.new(0, 120, 0, 40)
+    teleportButton.Position = UDim2.new(1, -140, 0, 110)
+    teleportButton.Text = "Teleport to Player"
+    teleportButton.Visible = false
+    teleportButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    teleportButton.Parent = screenGui
 
--- Function to get the player with the lowest health
+    return {
+        screenGui = screenGui,
+        lockButton = LockButton,
+        healthLabel = healthLabel,
+        teleportButton = teleportButton
+    }
+end
+
 local function getPlayerWithLowestHealth()
     local lowestHealthPlayer = nil
     local lowestHealth = math.huge
 
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
-            local health = player.Character.Humanoid.Health
-            if health > 0 and health < lowestHealth then
-                lowestHealth = health
-                lowestHealthPlayer = player
+        if player ~= LocalPlayer then
+            local character = player.Character
+            local humanoid = character and character:FindFirstChild("Humanoid")
+            
+            if humanoid and humanoid.Health > 0 then
+                if humanoid.Health < lowestHealth then
+                    lowestHealth = humanoid.Health
+                    lowestHealthPlayer = player
+                end
             end
         end
     end
-
+    
     return lowestHealthPlayer
 end
 
--- Function to update the GUI with the lowest health player
-local function updateGui()
-    local targetPlayer = getPlayerWithLowestHealth()
-    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") then
-        healthLabel.Text = "Player: " .. targetPlayer.Name .. " - Health: " .. math.floor(targetPlayer.Character.Humanoid.Health)
-        teleportButton.Visible = true
-        return targetPlayer
-    else
-        healthLabel.Text = "No player available"
-        teleportButton.Visible = false
-        return nil
-    end
-end
-
--- Function to lock onto a specified target
-local function lockOntoTarget(targetPlayer)
-    -- Disconnect previous lock if it exists
-    if lockConnection then
-        lockConnection:Disconnect()
-    end
-
-    currentTarget = targetPlayer
-    local targetPart = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+-- Modified for instant camera reset
+local function resetCamera()
     local camera = workspace.CurrentCamera
-
-    if targetPart then
-        lockConnection = RunService.RenderStepped:Connect(function()
-            -- Error handling if the target player leaves or dies
-            if not targetPart or not currentTarget or not currentTarget.Character then
-                lockConnection:Disconnect()
-                currentTarget = nil
-                -- Switch to the player with the lowest health
-                local newTarget = getPlayerWithLowestHealth()
-                if isLocked and newTarget then
-                    lockOntoTarget(newTarget)
-                end
-                return
-            end
-
-            local humanoid = currentTarget.Character:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health <= 0 then
-                lockConnection:Disconnect()
-                currentTarget = nil
-                -- Switch to the player with the lowest health
-                local newTarget = getPlayerWithLowestHealth()
-                if isLocked and newTarget then
-                    lockOntoTarget(newTarget)
-                end
-                return
-            end
-
-            -- Continuously lock the camera onto the targetPart
-            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPart.Position)
-        end)
-    else
-        warn("No valid target to lock onto.")
-    end
+    if not camera then return end
+    camera.CameraType = Enum.CameraType.Custom
 end
 
--- Toggle lock state and update the button text
-local function toggleLock()
-    isLocked = not isLocked
-    LockButton.Text = isLocked and "Unlock" or "Lock In"
+-- Prediction function for leading shots
+local function predictTargetPosition(targetPart, leadTime)
+    if not targetPart then return nil end
+    
+    local velocity = targetPart.Velocity
+    return targetPart.Position + (velocity * leadTime)
+end
 
-    if isLocked then
+-- Modified for snappy camera movement
+local function lockOntoTarget(targetPlayer, gui)
+    if lockConnection then 
+        lockConnection:Disconnect()
+        lockConnection = nil
+    end
+
+    if not targetPlayer then return end
+    
+    currentTarget = targetPlayer
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+
+    local LEAD_TIME = 0.1 -- Adjust this value to change prediction amount
+    local VERTICAL_OFFSET = Vector3.new(0, 2, 0) -- Adjust this to change aim height
+
+    -- Create a heartbeat to check target validity
+    local heartbeat = RunService.Heartbeat:Connect(function()
+        if not currentTarget or not currentTarget.Character then
+            if heartbeat then heartbeat:Disconnect() end
+            return
+        end
+    end)
+
+    -- Modified camera update logic for snappy movement
+    lockConnection = RunService.RenderStepped:Connect(function()
+        if not currentTarget or not currentTarget.Character then
+            if lockConnection then
+                lockConnection:Disconnect()
+                lockConnection = nil
+            end
+            if isLocked then
+                local newTarget = getPlayerWithLowestHealth()
+                if newTarget then
+                    lockOntoTarget(newTarget, gui)
+                end
+            else
+                resetCamera()
+            end
+            return
+        end
+
+        local targetRoot = currentTarget.Character:FindFirstChild("HumanoidRootPart")
+        local humanoid = currentTarget.Character:FindFirstChild("Humanoid")
+        
+        if not targetRoot or not humanoid or humanoid.Health <= 0 then
+            if lockConnection then
+                lockConnection:Disconnect()
+                lockConnection = nil
+            end
+            if isLocked then
+                local newTarget = getPlayerWithLowestHealth()
+                if newTarget then
+                    lockOntoTarget(newTarget, gui)
+                end
+            else
+                resetCamera()
+            end
+            return
+        end
+
+        -- Calculate predicted position with leading
+        local predictedPos = predictTargetPosition(targetRoot, LEAD_TIME)
+        if predictedPos then
+            -- Add vertical offset and set camera instantly
+            local targetPos = predictedPos + VERTICAL_OFFSET
+            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
+        end
+    end)
+end
+
+local function updateGui(gui)
+    local targetPlayer = getPlayerWithLowestHealth()
+    
+    if targetPlayer and targetPlayer.Character then
+        local humanoid = targetPlayer.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            gui.healthLabel.Text = string.format(
+                "Player: %s - Health: %d",
+                targetPlayer.Name,
+                math.floor(humanoid.Health)
+            )
+            gui.teleportButton.Visible = true
+            return targetPlayer
+        end
+    end
+    
+    gui.healthLabel.Text = "No valid target"
+    gui.teleportButton.Visible = false
+    return nil
+end
+
+local function teleportToPlayer(targetPlayer)
+    if not targetPlayer then return end
+    
+    local character = LocalPlayer.Character
+    local targetCharacter = targetPlayer.Character
+    
+    if not character or not targetCharacter then return end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
+    
+    if rootPart and targetRoot then
+        -- Teleport slightly behind the target
+        rootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 5)
+        isLocked = true
+        return true
+    end
+    
+    return false
+end
+
+local function init()
+    local gui = createGui()
+    
+    gui.lockButton.MouseButton1Click:Connect(function()
+        isLocked = not isLocked
+        gui.lockButton.Text = isLocked and "Unlock" or "Lock In"
+        
+        if isLocked then
+            local targetPlayer = getPlayerWithLowestHealth()
+            if targetPlayer then
+                lockOntoTarget(targetPlayer, gui)
+            end
+        else
+            if lockConnection then
+                lockConnection:Disconnect()
+                lockConnection = nil
+            end
+            currentTarget = nil
+            resetCamera()
+        end
+    end)
+    
+    gui.teleportButton.MouseButton1Click:Connect(function()
         local targetPlayer = getPlayerWithLowestHealth()
         if targetPlayer then
-            lockOntoTarget(targetPlayer)
+            if teleportToPlayer(targetPlayer) then
+                lockOntoTarget(targetPlayer, gui)
+                gui.lockButton.Text = "Unlock"
+            end
         end
-    else
+    end)
+    
+    spawn(function()
+        while isRunning do
+            local success, error = pcall(function()
+                updateGui(gui)
+            end)
+            
+            if not success then
+                warn("Update error:", error)
+            end
+            
+            wait(UpdateFrequency)
+        end
+    end)
+    
+    gui.screenGui.Destroying:Connect(function()
+        isRunning = false
         if lockConnection then
             lockConnection:Disconnect()
-            lockConnection = nil
         end
-        currentTarget = nil
-    end
+    end)
 end
 
--- Button click to toggle lock state
-LockButton.MouseButton1Click:Connect(toggleLock)
-
--- Function to teleport to and lock onto the player with the lowest health
-local function teleportToPlayer(targetPlayer)
-    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local targetPosition = targetPlayer.Character.HumanoidRootPart.Position
-        LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(targetPosition))
-
-        -- Enable lock-on and lock onto the player after teleporting
-        isLocked = true
-        LockButton.Text = "Unlock"
-        lockOntoTarget(targetPlayer)
-    end
-end
-
--- Button click to teleport and lock onto the player with the lowest health
-teleportButton.MouseButton1Click:Connect(function()
-    local targetPlayer = getPlayerWithLowestHealth()
-    if targetPlayer then
-        teleportToPlayer(targetPlayer)
-    end
-end)
-
--- Function to handle player touch for auto-attack
-local function onPlayerTouched(hit)
-    local otherPlayer = Players:GetPlayerFromCharacter(hit.Parent)
-    if otherPlayer and otherPlayer ~= LocalPlayer then
-        -- Simulate attack or interaction
-        -- Call the actual attack function here, or simulate the effect
-        print("Attacked " .. otherPlayer.Name)
-    end
-end
-
--- Connect the Touched event for the player's character when it respawns
-LocalPlayer.CharacterAdded:Connect(function(character)
-    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-    humanoidRootPart.Touched:Connect(onPlayerTouched)
-end)
-
--- Initialize with the current character's hitbox touch detection
-if LocalPlayer.Character then
-    local humanoidRootPart = LocalPlayer.Character:WaitForChild("HumanoidRootPart")
-    humanoidRootPart.Touched:Connect(onPlayerTouched)
-end
-
--- Update GUI periodically
-while true do
-    updateGui()
-    wait(UpdateFrequency)
-end
+init()
