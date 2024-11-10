@@ -1,262 +1,104 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local UpdateFrequency = 1
+local UserInputService = game:GetService("UserInputService")
+
 local currentTarget = nil
 local lockConnection = nil
 local isLocked = false
-local isRunning = true
+local CAMERA_OFFSET = Vector3.new(0, 2, 10) -- Distance behind player
 
--- Create GUI with error handling
-local function createGui()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "PlayerTrackerGui"
-    screenGui.ResetOnSpawn = false
-    
-    -- Remove existing GUI if it exists
-    local existingGui = LocalPlayer.PlayerGui:FindFirstChild("PlayerTrackerGui")
-    if existingGui then
-        existingGui:Destroy()
-    end
-    
-    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-    local LockButton = Instance.new("TextButton")
-    LockButton.Size = UDim2.new(0, 120, 0, 40)
-    LockButton.Position = UDim2.new(1, -140, 0, 10)
-    LockButton.Text = "Lock In"
-    LockButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    LockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    LockButton.Parent = screenGui
-
-    local healthLabel = Instance.new("TextLabel")
-    healthLabel.Size = UDim2.new(0, 200, 0, 40)
-    healthLabel.Position = UDim2.new(1, -220, 0, 60)
-    healthLabel.Text = "Waiting for target..."
-    healthLabel.TextScaled = true
-    healthLabel.BackgroundTransparency = 1
-    healthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    healthLabel.Parent = screenGui
-
-    local teleportButton = Instance.new("TextButton")
-    teleportButton.Size = UDim2.new(0, 120, 0, 40)
-    teleportButton.Position = UDim2.new(1, -140, 0, 110)
-    teleportButton.Text = "Teleport to Player"
-    teleportButton.Visible = false
-    teleportButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    teleportButton.Parent = screenGui
-
-    return {
-        screenGui = screenGui,
-        lockButton = LockButton,
-        healthLabel = healthLabel,
-        teleportButton = teleportButton
-    }
+-- Function to get the desired camera position behind the player
+local function getDesiredCameraPosition(playerRoot, targetPos)
+    local lookVector = (targetPos - playerRoot.Position).Unit
+    return playerRoot.Position - (lookVector * CAMERA_OFFSET.Z) + Vector3.new(0, CAMERA_OFFSET.Y, 0)
 end
 
-local function getPlayerWithLowestHealth()
-    local lowestHealthPlayer = nil
-    local lowestHealth = math.huge
-
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local character = player.Character
-            local humanoid = character and character:FindFirstChild("Humanoid")
-            
-            if humanoid and humanoid.Health > 0 then
-                if humanoid.Health < lowestHealth then
-                    lowestHealth = humanoid.Health
-                    lowestHealthPlayer = player
-                end
-            end
-        end
-    end
-    
-    return lowestHealthPlayer
-end
-
--- Modified for instant camera reset
-local function resetCamera()
-    local camera = workspace.CurrentCamera
-    if not camera then return end
-    camera.CameraType = Enum.CameraType.Custom
-end
-
--- Prediction function for leading shots
-local function predictTargetPosition(targetPart, leadTime)
-    if not targetPart then return nil end
-    
-    local velocity = targetPart.Velocity
-    return targetPart.Position + (velocity * leadTime)
-end
-
--- Modified for snappy camera movement
-local function lockOntoTarget(targetPlayer, gui)
+local function lockOntoTarget(targetPlayer)
     if lockConnection then 
         lockConnection:Disconnect()
         lockConnection = nil
     end
 
     if not targetPlayer then return end
-    
     currentTarget = targetPlayer
     local camera = workspace.CurrentCamera
     if not camera then return end
 
-    local LEAD_TIME = 0.1 -- Adjust this value to change prediction amount
-    local VERTICAL_OFFSET = Vector3.new(0, 2, 0) -- Adjust this to change aim height
-
-    -- Create a heartbeat to check target validity
-    local heartbeat = RunService.Heartbeat:Connect(function()
-        if not currentTarget or not currentTarget.Character then
-            if heartbeat then heartbeat:Disconnect() end
-            return
-        end
-    end)
-
-    -- Modified camera update logic for snappy movement
-    lockConnection = RunService.RenderStepped:Connect(function()
-        if not currentTarget or not currentTarget.Character then
-            if lockConnection then
-                lockConnection:Disconnect()
-                lockConnection = nil
-            end
-            if isLocked then
-                local newTarget = getPlayerWithLowestHealth()
-                if newTarget then
-                    lockOntoTarget(newTarget, gui)
-                end
-            else
-                resetCamera()
-            end
-            return
-        end
-
-        local targetRoot = currentTarget.Character:FindFirstChild("HumanoidRootPart")
-        local humanoid = currentTarget.Character:FindFirstChild("Humanoid")
+    lockConnection = RunService.RenderStepped:Connect(function(deltaTime)
+        local playerCharacter = LocalPlayer.Character
+        local playerRoot = playerCharacter and playerCharacter:FindFirstChild("HumanoidRootPart")
+        local targetCharacter = currentTarget.Character
+        local targetRoot = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
         
-        if not targetRoot or not humanoid or humanoid.Health <= 0 then
-            if lockConnection then
-                lockConnection:Disconnect()
-                lockConnection = nil
-            end
-            if isLocked then
-                local newTarget = getPlayerWithLowestHealth()
-                if newTarget then
-                    lockOntoTarget(newTarget, gui)
-                end
-            else
-                resetCamera()
-            end
+        if not playerRoot or not targetRoot then
             return
         end
 
-        -- Calculate predicted position with leading
-        local predictedPos = predictTargetPosition(targetRoot, LEAD_TIME)
-        if predictedPos then
-            -- Add vertical offset and set camera instantly
-            local targetPos = predictedPos + VERTICAL_OFFSET
-            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
-        end
+        -- Calculate the position where the camera should be
+        local desiredCameraPos = getDesiredCameraPosition(playerRoot, targetRoot.Position)
+        
+        -- Create a CFrame that looks from the camera position to the target
+        local newCameraCF = CFrame.new(desiredCameraPos, targetRoot.Position + Vector3.new(0, 2, 0))
+        
+        -- Smoothly interpolate to the new camera position
+        camera.CFrame = camera.CFrame:Lerp(newCameraCF, 0.1)
     end)
 end
 
-local function updateGui(gui)
-    local targetPlayer = getPlayerWithLowestHealth()
+-- Function to handle camera reset
+local function resetCamera()
+    local camera = workspace.CurrentCamera
+    if not camera then return end
     
-    if targetPlayer and targetPlayer.Character then
-        local humanoid = targetPlayer.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            gui.healthLabel.Text = string.format(
-                "Player: %s - Health: %d",
-                targetPlayer.Name,
-                math.floor(humanoid.Health)
-            )
-            gui.teleportButton.Visible = true
-            return targetPlayer
-        end
-    end
-    
-    gui.healthLabel.Text = "No valid target"
-    gui.teleportButton.Visible = false
-    return nil
-end
-
-local function teleportToPlayer(targetPlayer)
-    if not targetPlayer then return end
-    
+    -- Store the last camera offset relative to the player
     local character = LocalPlayer.Character
-    local targetCharacter = targetPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
     
-    if not character or not targetCharacter then return end
-    
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
-    
-    if rootPart and targetRoot then
-        -- Teleport slightly behind the target
-        rootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 5)
-        isLocked = true
-        return true
+    if root then
+        -- Smoothly transition to default camera behavior
+        local connection
+        connection = RunService.RenderStepped:Connect(function(deltaTime)
+            camera.CameraType = Enum.CameraType.Custom
+            if not character.Parent then
+                connection:Disconnect()
+                return
+            end
+        end)
+        
+        -- Cleanup after a short transition period
+        delay(0.5, function()
+            if connection then
+                connection:Disconnect()
+            end
+        end)
     end
-    
-    return false
 end
 
-local function init()
-    local gui = createGui()
+-- Modified lock toggle function
+local function toggleLock()
+    isLocked = not isLocked
     
-    gui.lockButton.MouseButton1Click:Connect(function()
-        isLocked = not isLocked
-        gui.lockButton.Text = isLocked and "Unlock" or "Lock In"
-        
-        if isLocked then
-            local targetPlayer = getPlayerWithLowestHealth()
-            if targetPlayer then
-                lockOntoTarget(targetPlayer, gui)
-            end
-        else
-            if lockConnection then
-                lockConnection:Disconnect()
-                lockConnection = nil
-            end
-            currentTarget = nil
-            resetCamera()
-        end
-    end)
-    
-    gui.teleportButton.MouseButton1Click:Connect(function()
-        local targetPlayer = getPlayerWithLowestHealth()
+    if isLocked then
+        local targetPlayer = -- your target selection logic
         if targetPlayer then
-            if teleportToPlayer(targetPlayer) then
-                lockOntoTarget(targetPlayer, gui)
-                gui.lockButton.Text = "Unlock"
-            end
+            lockOntoTarget(targetPlayer)
         end
-    end)
-    
-    spawn(function()
-        while isRunning do
-            local success, error = pcall(function()
-                updateGui(gui)
-            end)
-            
-            if not success then
-                warn("Update error:", error)
-            end
-            
-            wait(UpdateFrequency)
-        end
-    end)
-    
-    gui.screenGui.Destroying:Connect(function()
-        isRunning = false
+    else
         if lockConnection then
             lockConnection:Disconnect()
+            lockConnection = nil
         end
-    end)
+        currentTarget = nil
+        resetCamera()
+    end
 end
 
-init()
+-- Handle player respawn
+LocalPlayer.CharacterAdded:Connect(function(character)
+    if isLocked and currentTarget then
+        -- Re-establish lock with brief delay to allow character to load
+        wait(0.1)
+        lockOntoTarget(currentTarget)
+    end
+end)
