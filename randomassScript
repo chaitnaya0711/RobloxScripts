@@ -2,13 +2,134 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
 
+-- Constants
+local CAMERA_OFFSET = Vector3.new(0, 2, 10)
+local MAX_DISTANCE = 150 -- Maximum distance to track a target
+local LERP_SPEED = 0.2 -- Higher value = snappier camera (0.1 is smooth, 0.2 is snappy)
+
+-- Variables
 local currentTarget = nil
 local lockConnection = nil
 local isLocked = false
-local CAMERA_OFFSET = Vector3.new(0, 2, 10) -- Distance behind player
+local isMobile = GuiService:IsTenFootInterface() or UserInputService.TouchEnabled
 
--- Function to get the nearest player
+-- GUI Creation
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "LockSystemGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 200, 0, 130) -- Increased height for mobile button
+MainFrame.Position = UDim2.new(0.85, 0, 0.4, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.BackgroundTransparency = 0.3
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+-- Status Text
+local StatusText = Instance.new("TextLabel")
+StatusText.Name = "StatusText"
+StatusText.Size = UDim2.new(1, 0, 0, 30)
+StatusText.Position = UDim2.new(0, 0, 0, 10)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = "Status: Inactive"
+StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatusText.TextSize = 14
+StatusText.Font = Enum.Font.GothamSemibold
+StatusText.Parent = MainFrame
+
+-- Target Text
+local TargetText = Instance.new("TextLabel")
+TargetText.Name = "TargetText"
+TargetText.Size = UDim2.new(1, 0, 0, 30)
+TargetText.Position = UDim2.new(0, 0, 0, 40)
+TargetText.BackgroundTransparency = 1
+TargetText.Text = "Target: None"
+TargetText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TargetText.TextSize = 14
+TargetText.Font = Enum.Font.GothamSemibold
+TargetText.Parent = MainFrame
+
+-- Key Bind Text
+local KeyBindText = Instance.new("TextLabel")
+KeyBindText.Name = "KeyBindText"
+KeyBindText.Size = UDim2.new(1, 0, 0, 30)
+KeyBindText.Position = UDim2.new(0, 0, 0, 70)
+KeyBindText.BackgroundTransparency = 1
+KeyBindText.Text = isMobile and "Use Button to Toggle" or "Press Q to Toggle"
+KeyBindText.TextColor3 = Color3.fromRGB(200, 200, 200)
+KeyBindText.TextSize = 12
+KeyBindText.Font = Enum.Font.GothamSemibold
+KeyBindText.Parent = MainFrame
+
+-- Mobile Toggle Button
+local ToggleButton
+if isMobile then
+    ToggleButton = Instance.new("TextButton")
+    ToggleButton.Name = "ToggleButton"
+    ToggleButton.Size = UDim2.new(0.8, 0, 0, 30)
+    ToggleButton.Position = UDim2.new(0.1, 0, 0, 95)
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    ToggleButton.BorderSizePixel = 0
+    ToggleButton.Text = "Toggle Lock"
+    ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleButton.TextSize = 14
+    ToggleButton.Font = Enum.Font.GothamSemibold
+    ToggleButton.Parent = MainFrame
+    
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 6)
+    ButtonCorner.Parent = ToggleButton
+end
+
+-- Create Corner
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 8)
+Corner.Parent = MainFrame
+
+-- Crosshair GUI
+local Crosshair = Instance.new("Frame")
+Crosshair.Name = "Crosshair"
+Crosshair.Size = UDim2.new(0, 4, 0, 4)
+Crosshair.Position = UDim2.new(0.5, -2, 0.5, -2)
+Crosshair.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+Crosshair.BorderSizePixel = 0
+Crosshair.Visible = false
+Crosshair.Parent = ScreenGui
+
+local CrosshairCorner = Instance.new("UICorner")
+CrosshairCorner.CornerRadius = UDim.new(1, 0)
+CrosshairCorner.Parent = Crosshair
+
+-- Function to check if target is within valid range and line of sight
+local function isValidTarget(target)
+    local myCharacter = LocalPlayer.Character
+    local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
+    local targetCharacter = target.Character
+    local targetRoot = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
+    local targetHumanoid = targetCharacter and targetCharacter:FindFirstChild("Humanoid")
+    
+    if not myRoot or not targetRoot or not targetHumanoid then return false end
+    if targetHumanoid.Health <= 0 then return false end
+    
+    -- Check distance
+    local distance = (targetRoot.Position - myRoot.Position).Magnitude
+    if distance > MAX_DISTANCE then return false end
+    
+    -- Check line of sight
+    local ray = Ray.new(myRoot.Position, (targetRoot.Position - myRoot.Position))
+    local hit, _ = workspace:FindPartOnRayWithIgnoreList(ray, {myCharacter, targetCharacter})
+    
+    return hit == nil
+end
+
+-- Function to get the nearest valid player
 local function getNearestPlayer()
     local myCharacter = LocalPlayer.Character
     local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
@@ -16,15 +137,14 @@ local function getNearestPlayer()
     if not myRoot then return nil end
     
     local nearest = nil
-    local minDistance = math.huge
+    local minDistance = MAX_DISTANCE
     
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
+        if player ~= LocalPlayer and isValidTarget(player) then
             local character = player.Character
             local root = character and character:FindFirstChild("HumanoidRootPart")
-            local humanoid = character and character:FindFirstChild("Humanoid")
             
-            if root and humanoid and humanoid.Health > 0 then
+            if root then
                 local distance = (root.Position - myRoot.Position).Magnitude
                 if distance < minDistance then
                     minDistance = distance
@@ -37,10 +157,35 @@ local function getNearestPlayer()
     return nearest
 end
 
+-- Function to predict target position
+local function predictTargetPosition(targetRoot)
+    local velocity = targetRoot.Velocity
+    return targetRoot.Position + (velocity * 0.1) -- Predict 0.1 seconds ahead
+end
+
 -- Function to get the desired camera position behind the player
 local function getDesiredCameraPosition(playerRoot, targetPos)
     local lookVector = (targetPos - playerRoot.Position).Unit
     return playerRoot.Position - (lookVector * CAMERA_OFFSET.Z) + Vector3.new(0, CAMERA_OFFSET.Y, 0)
+end
+
+-- Function to update GUI
+local function updateGUI(isActive, targetName)
+    StatusText.Text = "Status: " .. (isActive and "Active" or "Inactive")
+    StatusText.TextColor3 = isActive and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+    TargetText.Text = "Target: " .. (targetName or "None")
+    Crosshair.Visible = isActive
+    
+    if isMobile and ToggleButton then
+        ToggleButton.BackgroundColor3 = isActive and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(60, 60, 60)
+    end
+    
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local targetTransparency = isActive and 0.3 or 0.8
+    
+    TweenService:Create(MainFrame, tweenInfo, {
+        BackgroundTransparency = targetTransparency
+    }):Play()
 end
 
 local function lockOntoTarget(targetPlayer)
@@ -54,24 +199,47 @@ local function lockOntoTarget(targetPlayer)
     local camera = workspace.CurrentCamera
     if not camera then return end
 
+    updateGUI(true, targetPlayer.Name)
+
+    -- Initialize previous values for smooth interpolation
+    local previousCameraCFrame = camera.CFrame
+    
     lockConnection = RunService.RenderStepped:Connect(function(deltaTime)
         local playerCharacter = LocalPlayer.Character
         local playerRoot = playerCharacter and playerCharacter:FindFirstChild("HumanoidRootPart")
         local targetCharacter = currentTarget.Character
         local targetRoot = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
         
-        if not playerRoot or not targetRoot then
-            return
+        if not playerRoot or not targetRoot or not isValidTarget(currentTarget) then
+            local newTarget = getNearestPlayer()
+            if newTarget then
+                currentTarget = newTarget
+                updateGUI(true, newTarget.Name)
+                return
+            else
+                toggleLock()
+                return
+            end
         end
 
-        -- Calculate the position where the camera should be
-        local desiredCameraPos = getDesiredCameraPosition(playerRoot, targetRoot.Position)
+        -- Predict target position
+        local predictedPos = predictTargetPosition(targetRoot)
+        
+        -- Calculate desired camera position
+        local desiredCameraPos = getDesiredCameraPosition(playerRoot, predictedPos)
         
         -- Create a CFrame that looks from the camera position to the target
-        local newCameraCF = CFrame.new(desiredCameraPos, targetRoot.Position + Vector3.new(0, 2, 0))
+        local newCameraCF = CFrame.new(desiredCameraPos, predictedPos + Vector3.new(0, 2, 0))
         
         -- Smoothly interpolate to the new camera position
-        camera.CFrame = camera.CFrame:Lerp(newCameraCF, 0.1)
+        camera.CFrame = previousCameraCFrame:Lerp(newCameraCF, LERP_SPEED)
+        previousCameraCFrame = camera.CFrame
+        
+        -- Update crosshair position
+        local targetScreenPos, isOnScreen = camera:WorldToScreenPoint(predictedPos)
+        if isOnScreen then
+            Crosshair.Position = UDim2.new(0, targetScreenPos.X - 2, 0, targetScreenPos.Y - 2)
+        end
     end)
 end
 
@@ -80,38 +248,30 @@ local function resetCamera()
     local camera = workspace.CurrentCamera
     if not camera then return end
     
-    -- Store the last camera offset relative to the player
-    local character = LocalPlayer.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
+    updateGUI(false)
     
-    if root then
-        -- Smoothly transition to default camera behavior
-        local connection
-        connection = RunService.RenderStepped:Connect(function(deltaTime)
-            camera.CameraType = Enum.CameraType.Custom
-            if not character.Parent then
-                connection:Disconnect()
-                return
-            end
-        end)
-        
-        -- Cleanup after a short transition period
-        task.delay(0.5, function()
-            if connection then
-                connection:Disconnect()
-            end
-        end)
+    -- Smoothly transition back to default camera behavior
+    local character = LocalPlayer.Character
+    local humanoid = character and character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.CameraOffset = Vector3.new(0, 0, 0)
     end
+    
+    camera.CameraType = Enum.CameraType.Custom
 end
 
--- Modified lock toggle function with proper target selection
+-- Modified lock toggle function
 local function toggleLock()
     isLocked = not isLocked
     
     if isLocked then
-        local targetPlayer = getNearestPlayer() -- Now using the getNearestPlayer function
+        local targetPlayer = getNearestPlayer()
         if targetPlayer then
             lockOntoTarget(targetPlayer)
+        else
+            isLocked = false
+            updateGUI(false)
+            createNotification("No valid targets found")
         end
     else
         if lockConnection then
@@ -126,7 +286,6 @@ end
 -- Handle player respawn
 LocalPlayer.CharacterAdded:Connect(function(character)
     if isLocked and currentTarget then
-        -- Re-establish lock with brief delay to allow character to load
         task.wait(0.1)
         lockOntoTarget(currentTarget)
     end
@@ -134,7 +293,221 @@ end)
 
 -- Set up input handling
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.Q then -- You can change Q to any key
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.Q and not isMobile then
         toggleLock()
     end
 end)
+
+-- Mobile button handling
+if isMobile and ToggleButton then
+    ToggleButton.TouchTap:Connect(toggleLock)
+end
+
+-- Draggable GUI functionality
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or
+       input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or
+                    input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or
+       input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Notification system
+local function createNotification(message)
+    local Notification = Instance.new("Frame")
+    Notification.Name = "Notification"
+    Notification.Size = UDim2.new(0, 200, 0, 50)
+    Notification.Position = UDim2.new(0.5, -100, 0.8, 0)
+    Notification.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    Notification.BackgroundTransparency = 0.3
+    Notification.BorderSizePixel = 0
+    Notification.Parent = ScreenGui
+
+    local NotifCorner = Instance.new("UICorner")
+    NotifCorner.CornerRadius = UDim.new(0, 8)
+    NotifCorner.Parent = Notification
+
+    local NotifText = Instance.new("TextLabel")
+    NotifText.Size = UDim2.new(1, 0, 1, 0)
+    NotifText.BackgroundTransparency = 1
+    NotifText.Text = message
+    NotifText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    NotifText.TextSize = 14
+    NotifText.Font = Enum.Font.GothamSemibold
+    NotifText.Parent = Notification
+-- Continuation of createNotification function
+    Notification.Position = UDim2.new(0.5, -100, 1, 0)
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(Notification, tweenInfo, {
+        Position = UDim2.new(0.5, -100, 0.8, 0)
+    })
+    tween:Play()
+
+    -- Remove the notification after 3 seconds
+    task.delay(3, function()
+        local fadeOut = TweenService:Create(Notification, TweenInfo.new(0.5), {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0.5, -100, 0.7, 0)
+        })
+        fadeOut:Play()
+        fadeOut.Completed:Connect(function()
+            Notification:Destroy()
+        end)
+    end)
+end
+
+-- Enhanced target monitoring system
+RunService.Heartbeat:Connect(function()
+    if isLocked and currentTarget then
+        -- Check if target is still valid
+        if not isValidTarget(currentTarget) then
+            -- Try to find a new target
+            local newTarget = getNearestPlayer()
+            if newTarget then
+                createNotification("Target lost - switching to nearest player")
+                lockOntoTarget(newTarget)
+            else
+                createNotification("No valid targets found")
+                toggleLock() -- Turn off the lock if no valid targets
+            end
+        end
+    end
+end)
+
+-- Player leaving handler
+Players.PlayerRemoving:Connect(function(player)
+    if player == currentTarget then
+        createNotification("Target left the game")
+        local newTarget = getNearestPlayer()
+        if newTarget then
+            lockOntoTarget(newTarget)
+        else
+            toggleLock()
+        end
+    end
+end)
+
+-- Add character state change monitoring
+local function setupCharacterMonitoring(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    humanoid.StateChanged:Connect(function(_, new)
+        if isLocked and currentTarget then
+            -- States that might affect targeting
+            if new == Enum.HumanoidStateType.Dead or
+               new == Enum.HumanoidStateType.Swimming then
+                local newTarget = getNearestPlayer()
+                if newTarget then
+                    createNotification("Target state changed - switching targets")
+                    lockOntoTarget(newTarget)
+                else
+                    toggleLock()
+                end
+            end
+        end
+    end)
+end
+
+LocalPlayer.CharacterAdded:Connect(setupCharacterMonitoring)
+if LocalPlayer.Character then
+    setupCharacterMonitoring(LocalPlayer.Character)
+end
+
+-- Enhanced mobile support
+if isMobile then
+    -- Add mobile-specific touch controls
+    local TouchGui = Instance.new("ScreenGui")
+    TouchGui.Name = "TouchControls"
+    TouchGui.ResetOnSpawn = false
+    TouchGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- Create a larger touch area for mobile users
+    local TouchArea = Instance.new("TextButton")
+    TouchArea.Name = "TouchArea"
+    TouchArea.Size = UDim2.new(0, 60, 0, 60)
+    TouchArea.Position = UDim2.new(0.85, 0, 0.7, 0)
+    TouchArea.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    TouchArea.BackgroundTransparency = 0.7
+    TouchArea.Text = "🎯"
+    TouchArea.TextSize = 30
+    TouchArea.Font = Enum.Font.GothamBold
+    TouchArea.Parent = TouchGui
+    
+    local TouchCorner = Instance.new("UICorner")
+    TouchCorner.CornerRadius = UDim.new(1, 0)
+    TouchCorner.Parent = TouchArea
+    
+    -- Make the touch area draggable
+    local touchDragging = false
+    local touchDragStart = nil
+    local touchStartPos = nil
+    
+    TouchArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            touchDragging = true
+            touchDragStart = input.Position
+            touchStartPos = TouchArea.Position
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if touchDragging and input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - touchDragStart
+            TouchArea.Position = UDim2.new(
+                touchStartPos.X.Scale,
+                touchStartPos.X.Offset + delta.X,
+                touchStartPos.Y.Scale,
+                touchStartPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            touchDragging = false
+        end
+    end)
+    
+    -- Add touch functionality
+    TouchArea.TouchTap:Connect(toggleLock)
+    
+    -- Add visual feedback for touch
+    TouchArea.TouchTap:Connect(function()
+        local flash = TweenService:Create(TouchArea, TweenInfo.new(0.2), {
+            BackgroundTransparency = 0.3
+        })
+        flash:Play()
+        
+        task.delay(0.2, function()
+            local fadeBack = TweenService:Create(TouchArea, TweenInfo.new(0.2), {
+                BackgroundTransparency = 0.7
+            })
+            fadeBack:Play()
+        end)
+    end)
+end
