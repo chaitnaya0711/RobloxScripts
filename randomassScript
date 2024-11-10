@@ -8,6 +8,35 @@ local lockConnection = nil
 local isLocked = false
 local CAMERA_OFFSET = Vector3.new(0, 2, 10) -- Distance behind player
 
+-- Function to get the nearest player
+local function getNearestPlayer()
+    local myCharacter = LocalPlayer.Character
+    local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
+    
+    if not myRoot then return nil end
+    
+    local nearest = nil
+    local minDistance = math.huge
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local character = player.Character
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character and character:FindFirstChild("Humanoid")
+            
+            if root and humanoid and humanoid.Health > 0 then
+                local distance = (root.Position - myRoot.Position).Magnitude
+                if distance < minDistance then
+                    minDistance = distance
+                    nearest = player
+                end
+            end
+        end
+    end
+    
+    return nearest
+end
+
 -- Function to get the desired camera position behind the player
 local function getDesiredCameraPosition(playerRoot, targetPos)
     local lookVector = (targetPos - playerRoot.Position).Unit
@@ -67,7 +96,7 @@ local function resetCamera()
         end)
         
         -- Cleanup after a short transition period
-        delay(0.5, function()
+        task.delay(0.5, function()
             if connection then
                 connection:Disconnect()
             end
@@ -75,12 +104,12 @@ local function resetCamera()
     end
 end
 
--- Modified lock toggle function
+-- Modified lock toggle function with proper target selection
 local function toggleLock()
     isLocked = not isLocked
     
     if isLocked then
-        local targetPlayer = -- your target selection logic
+        local targetPlayer = getNearestPlayer() -- Now using the getNearestPlayer function
         if targetPlayer then
             lockOntoTarget(targetPlayer)
         end
@@ -98,7 +127,14 @@ end
 LocalPlayer.CharacterAdded:Connect(function(character)
     if isLocked and currentTarget then
         -- Re-establish lock with brief delay to allow character to load
-        wait(0.1)
+        task.wait(0.1)
         lockOntoTarget(currentTarget)
+    end
+end)
+
+-- Set up input handling
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.Q then -- You can change Q to any key
+        toggleLock()
     end
 end)
