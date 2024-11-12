@@ -1,0 +1,243 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+-- Enhanced Configuration
+local BLOCK_SIZE = 4
+local CHUNK_SIZE = 16
+local RENDER_DISTANCE = 1
+local MAX_HEIGHT = 80 -- Increased for mountains
+local MIN_HEIGHT = -4
+local BASE_NOISE_SCALE = 0.008
+local DETAIL_NOISE_SCALE = 0.02
+local BIOME_SCALE = 0.00000002 -- Scale for biome transitions
+local MOUNTAIN_SCALE = 0.004 -- Scale for mountain generation
+local TREE_CHANCE = 0.0000000001
+
+-- Spawn Configuration
+local SPAWN_SEARCH_RADIUS = 1
+local SPAWN_ATTEMPTS = 1
+local MIN_SPAWN_HEIGHT = 10
+local MAX_SPAWN_HEIGHT = 60
+
+-- Biome definitions
+local Biomes = {
+	PLAINS = {name = "Plains", baseHeight = 20, heightVariation = 5, treeChance = 0.001, grassColor = Color3.fromRGB(155, 187, 89), dirtColor = Color3.fromRGB(134, 105, 60)},
+	MOUNTAINS = {name = "Mountains", baseHeight = 45, heightVariation = 45, treeChance = 0.0005, grassColor = Color3.fromRGB(100, 130, 80), dirtColor = Color3.fromRGB(120, 110, 90)},
+	FLATLANDS = {name = "Flatlands", baseHeight = 16, heightVariation = 0.2, treeChance = 0.00005, grassColor = Color3.fromRGB(170, 210, 135), dirtColor = Color3.fromRGB(140, 120, 85)},
+	DESERT = {name = "Desert", baseHeight = 15, heightVariation = 0.3, treeChance = 0.00001, grassColor = Color3.fromRGB(210, 180, 140), dirtColor = Color3.fromRGB(194, 178, 128)},
+	FOREST = {name = "Forest", baseHeight = 22, heightVariation = 8, treeChance = 0.002, grassColor = Color3.fromRGB(34, 139, 34), dirtColor = Color3.fromRGB(139, 69, 19)},
+	JUNGLE = {name = "Jungle", baseHeight = 20, heightVariation = 10, treeChance = 0.004, grassColor = Color3.fromRGB(0, 102, 0), dirtColor = Color3.fromRGB(85, 107, 47)},
+	TAIGA = {name = "Taiga", baseHeight = 25, heightVariation = 7, treeChance = 0.015, grassColor = Color3.fromRGB(67, 87, 65), dirtColor = Color3.fromRGB(107, 98, 69)},
+	TUNDRA = {name = "Tundra", baseHeight = 10, heightVariation = 2, treeChance = 0.0001, grassColor = Color3.fromRGB(200, 200, 200), dirtColor = Color3.fromRGB(160, 160, 160)},
+	SWAMP = {name = "Swamp", baseHeight = 18, heightVariation = 2, treeChance = 0.012, grassColor = Color3.fromRGB(102, 153, 102), dirtColor = Color3.fromRGB(88, 66, 42)},
+	SAVANNA = {name = "Savanna", baseHeight = 17, heightVariation = 4, treeChance = 0.005, grassColor = Color3.fromRGB(189, 183, 107), dirtColor = Color3.fromRGB(139, 119, 101)},
+	BEACH = {name = "Beach", baseHeight = 13, heightVariation = 1, treeChance = 0.00001, grassColor = Color3.fromRGB(210, 180, 140), dirtColor = Color3.fromRGB(194, 178, 128)},
+	SNOWY_MOUNTAINS = {name = "Snowy Mountains", baseHeight = 50, heightVariation = 40, treeChance = 0.0001, grassColor = Color3.fromRGB(230, 230, 250), dirtColor = Color3.fromRGB(180, 180, 180)}
+}
+
+-- Cache and chunk settings
+local PartCache = {}
+local MAX_CACHE_SIZE = 1
+local LoadedChunks = {}
+local ChunkFolder = Instance.new("Folder")
+ChunkFolder.Name = "GeneratedTerrain"
+ChunkFolder.Parent = workspace
+
+local TreesEnabled = true
+
+-- Utility functions
+local function lerp(a, b, t)
+	return a + (b - a) * t
+end
+
+-- Enhanced noise function with multiple octaves
+local function improvedNoise(x, z, scale, octaves)
+	local value = 0
+	local amplitude = 1
+	local frequency = 1
+	local totalAmplitude = 0
+
+	for i = 1, octaves do
+		value = value + math.noise(x * scale * frequency, z * scale * frequency) * amplitude
+		totalAmplitude = totalAmplitude + amplitude
+		amplitude = amplitude * 0.5
+		frequency = frequency * 2
+	end
+
+	return value / totalAmplitude
+end
+
+local function getBiome(x, z, seed)
+	local biomeNoise = improvedNoise(x, z, BIOME_SCALE, 2)
+	local mountainNoise = improvedNoise(x, z, MOUNTAIN_SCALE, 3)
+
+	if mountainNoise > 0.7 then
+		return Biomes.MOUNTAINS
+	elseif biomeNoise > 0.6 then
+		return Biomes.FOREST
+	elseif biomeNoise > 0.4 then
+		return Biomes.PLAINS
+	elseif biomeNoise > 0.2 then
+		return Biomes.DESERT
+	else
+		return Biomes.TAIGA
+	end
+end
+
+local function getTerrainHeight(x, z, seed)
+	local biome = getBiome(x, z, seed)
+	local baseNoise = improvedNoise(x, z, BASE_NOISE_SCALE, 4)
+	local detailNoise = improvedNoise(x, z, DETAIL_NOISE_SCALE, 2)
+
+	local mountainInfluence = 0
+	if biome == Biomes.MOUNTAINS then
+		local mountainNoise = improvedNoise(x, z, MOUNTAIN_SCALE, 3)
+		mountainInfluence = math.max(0, (mountainNoise - 0.5) * 2)
+		mountainInfluence = mountainInfluence * mountainInfluence
+	end
+
+	local height = biome.baseHeight
+	height = height + baseNoise * biome.heightVariation
+	height = height + detailNoise * (biome.heightVariation * 0.2)
+	height = height + mountainInfluence * biome.heightVariation * 2
+
+	return math.floor(height / BLOCK_SIZE) * BLOCK_SIZE
+end
+
+local function getPartFromCache()
+	return #PartCache > 0 and table.remove(PartCache) or Instance.new("Part")
+end
+
+local function returnPartToCache(part)
+	if #PartCache < MAX_CACHE_SIZE then
+		part.Parent = nil
+		table.insert(PartCache, part)
+	else
+		part:Destroy()
+	end
+end
+
+local function isSuitableSpawnLocation(x, z, seed)
+	local height = getTerrainHeight(x, z, seed)
+	local biome = getBiome(x, z, seed)
+
+	if height < MIN_SPAWN_HEIGHT or height > MAX_SPAWN_HEIGHT then
+		return false
+	end
+
+	if biome == Biomes.MOUNTAINS then
+		return false
+	end
+
+	return true
+end
+
+local function unloadChunk(chunkX, chunkZ)
+	local chunkKey = chunkX .. "," .. chunkZ
+	local chunk = LoadedChunks[chunkKey]
+
+	if chunk then
+		for _, part in ipairs(chunk:GetDescendants()) do
+			if part:IsA("BasePart") then
+				returnPartToCache(part)
+			end
+		end
+		chunk:Destroy()
+		LoadedChunks[chunkKey] = nil
+	end
+end
+
+local function createTree(x, y, z, parent, biome)
+	if not TreesEnabled then return end
+
+	local trunkHeight = math.random(4, 7)
+	if biome == Biomes.MOUNTAINS then
+		trunkHeight = math.random(3, 5)
+	end
+
+	local leafSize = math.random(2, 4)
+	local trunk, leaves = getPartFromCache(), getPartFromCache()
+
+	local alignedX = math.floor(x / BLOCK_SIZE) * BLOCK_SIZE + BLOCK_SIZE / 2
+	local alignedZ = math.floor(z / BLOCK_SIZE) * BLOCK_SIZE + BLOCK_SIZE / 2
+	local alignedY = math.floor(y / BLOCK_SIZE) * BLOCK_SIZE
+
+	local trunkColorVar = math.random(-15, 15)
+	trunk.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE * trunkHeight, BLOCK_SIZE)
+	trunk.Position = Vector3.new(alignedX, alignedY + (BLOCK_SIZE * trunkHeight) / 2, alignedZ)
+	trunk.Color = Color3.fromRGB(139 + trunkColorVar, 69 + trunkColorVar, 19 + trunkColorVar)
+	trunk.Anchored = true
+	trunk.Parent = parent
+
+	local leafColorVar = math.random(-20, 20)
+	leaves.Size = Vector3.new(BLOCK_SIZE * leafSize * 2, BLOCK_SIZE * leafSize, BLOCK_SIZE * leafSize * 2)
+	leaves.Position = Vector3.new(alignedX, alignedY + BLOCK_SIZE * trunkHeight + (BLOCK_SIZE * leafSize) / 2, alignedZ)
+	leaves.Color = Color3.new(biome.grassColor.R + leafColorVar / 255, biome.grassColor.G + leafColorVar / 255, biome.grassColor.B + leafColorVar / 255)
+	leaves.Anchored = true
+	leaves.Parent = parent
+end
+
+local function generateChunk(chunkX, chunkZ, seed)
+	local chunkKey = chunkX .. "," .. chunkZ
+	local chunk = Instance.new("Folder")
+	chunk.Name = "Chunk_" .. chunkKey
+	chunk.Parent = ChunkFolder
+	LoadedChunks[chunkKey] = chunk
+
+	for x = 0, CHUNK_SIZE - 1 do
+		for z = 0, CHUNK_SIZE - 1 do
+			local worldX = (chunkX * CHUNK_SIZE + x) * BLOCK_SIZE
+			local worldZ = (chunkZ * CHUNK_SIZE + z) * BLOCK_SIZE
+			local height = getTerrainHeight(worldX, worldZ, seed)
+
+			local biome = getBiome(worldX, worldZ, seed)
+			local groundColor = biome.grassColor
+			local part = getPartFromCache()
+			part.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+			part.Position = Vector3.new(worldX, height + BLOCK_SIZE / 2, worldZ)
+			part.Color = groundColor
+			part.Anchored = true
+			part.Parent = chunk
+
+			if math.random() < biome.treeChance then
+				createTree(worldX, height + BLOCK_SIZE, worldZ, chunk, biome)
+			end
+		end
+	end
+end
+
+local function updateChunks(seed)
+	local playerPosition = Players.LocalPlayer.Character and Players.LocalPlayer.Character.PrimaryPart and Players.LocalPlayer.Character.PrimaryPart.Position
+	if not playerPosition then return end
+
+	local playerChunkX = math.floor(playerPosition.X / (BLOCK_SIZE * CHUNK_SIZE))
+	local playerChunkZ = math.floor(playerPosition.Z / (BLOCK_SIZE * CHUNK_SIZE))
+
+	local loadedChunkKeys = {}
+
+	for x = -RENDER_DISTANCE, RENDER_DISTANCE do
+		for z = -RENDER_DISTANCE, RENDER_DISTANCE do
+			local chunkX, chunkZ = playerChunkX + x, playerChunkZ + z
+			local chunkKey = chunkX .. "," .. chunkZ
+
+			if not LoadedChunks[chunkKey] then
+				generateChunk(chunkX, chunkZ, seed)
+			end
+
+			loadedChunkKeys[chunkKey] = true
+		end
+	end
+
+	for chunkKey, _ in pairs(LoadedChunks) do
+		if not loadedChunkKeys[chunkKey] then
+			local chunkCoords = string.split(chunkKey, ",")
+			unloadChunk(tonumber(chunkCoords[1]), tonumber(chunkCoords[2]))
+		end
+	end
+end
+
+-- Terrain update loop
+RunService.Heartbeat:Connect(function()
+	updateChunks(1234)
+end)
