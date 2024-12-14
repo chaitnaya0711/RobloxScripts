@@ -8,7 +8,44 @@ local lockConnection = nil
 local isLocked = false
 local isRunning = true
 
--- Create GUI with error handling
+-- Create a baseplate at Y = -500
+local function createBaseplate()
+    local baseplate = Instance.new("Part")
+    baseplate.Size = Vector3.new(512, 1, 512)
+    baseplate.Anchored = true
+    baseplate.Position = Vector3.new(0, -500, 0)
+    baseplate.Name = "CustomBaseplate"
+    baseplate.Parent = workspace
+end
+createBaseplate()
+
+local ANIMATION_ID = "rbxassetid://11343250001"
+
+local function teleportLocalPlayerIfAnimation(track)
+    if track.Animation and track.Animation.AnimationId == ANIMATION_ID then
+        local character = LocalPlayer.Character
+        if character then
+            local root = character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.CFrame = CFrame.new(0, -435, 0)
+            end
+        end
+    end
+end
+
+local function connectAnimationListener(character)
+    local humanoid = character:FindFirstChild("Humanoid") or character:WaitForChild("Humanoid")
+    local animator = humanoid:FindFirstChild("Animator") or humanoid:WaitForChild("Animator")
+    animator.AnimationPlayed:Connect(teleportLocalPlayerIfAnimation)
+end
+
+-- Connect to local player's character on load and when it respawns
+if LocalPlayer.Character then
+    connectAnimationListener(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(connectAnimationListener)
+
+-- GUI creation unchanged
 local function createGui()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "PlayerTrackerGui"
@@ -77,22 +114,25 @@ local function getPlayerWithLowestHealth()
     return lowestHealthPlayer
 end
 
--- Modified for instant camera reset
 local function resetCamera()
     local camera = workspace.CurrentCamera
     if not camera then return end
     camera.CameraType = Enum.CameraType.Custom
 end
 
--- Prediction function for leading shots
-local function predictTargetPosition(targetPart, leadTime)
-    if not targetPart then return nil end
-
-    local velocity = targetPart.Velocity
-    return targetPart.Position + (velocity * leadTime)
+-- Attempt to detect target player playing the animation
+local function connectTargetAnimationListener(targetPlayer)
+    -- This may not replicate to the client, but we will try
+    if targetPlayer and targetPlayer.Character then
+        local humanoid = targetPlayer.Character:FindFirstChild("Humanoid")
+        local animator = humanoid and humanoid:FindFirstChild("Animator")
+        if animator then
+            animator.AnimationPlayed:Connect(teleportLocalPlayerIfAnimation)
+        end
+    end
 end
 
--- Modified for snappy camera movement
+-- Hard lock: no prediction, just look directly at target's root part
 local function lockOntoTarget(targetPlayer, gui)
     if lockConnection then 
         lockConnection:Disconnect()
@@ -105,10 +145,11 @@ local function lockOntoTarget(targetPlayer, gui)
     local camera = workspace.CurrentCamera
     if not camera then return end
 
-    local LEAD_TIME = 0.1 -- Adjust this value to change prediction amount
-    local VERTICAL_OFFSET = Vector3.new(0, 2, 0) -- Adjust this to change aim height
+    local VERTICAL_OFFSET = Vector3.new(0, 2, 0)
 
-    -- Create a heartbeat to check target validity
+    -- Attempt to connect to the target's animator as well
+    connectTargetAnimationListener(targetPlayer)
+
     local heartbeat = RunService.Heartbeat:Connect(function()
         if not currentTarget or not currentTarget.Character then
             if heartbeat then heartbeat:Disconnect() end
@@ -116,7 +157,6 @@ local function lockOntoTarget(targetPlayer, gui)
         end
     end)
 
-    -- Modified camera update logic for snappy movement
     lockConnection = RunService.RenderStepped:Connect(function()
         if not currentTarget or not currentTarget.Character then
             if lockConnection then
@@ -153,13 +193,9 @@ local function lockOntoTarget(targetPlayer, gui)
             return
         end
 
-        -- Calculate predicted position with leading
-        local predictedPos = predictTargetPosition(targetRoot, LEAD_TIME)
-        if predictedPos then
-            -- Add vertical offset and set camera instantly
-            local targetPos = predictedPos + VERTICAL_OFFSET
-            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
-        end
+        -- Directly set camera to face the target's root part instantly
+        local targetPos = targetRoot.Position + VERTICAL_OFFSET
+        camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
     end)
 end
 
@@ -196,9 +232,7 @@ local function teleportToPlayer(targetPlayer)
     local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
 
     if rootPart and targetRoot then
-        -- Teleport slightly behind the target
         rootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 5)
-        isLocked = true
         return true
     end
 
@@ -231,20 +265,21 @@ local function init()
         local targetPlayer = getPlayerWithLowestHealth()
         if targetPlayer then
             if teleportToPlayer(targetPlayer) then
-                lockOntoTarget(targetPlayer, gui)
+                isLocked = true
                 gui.lockButton.Text = "Unlock"
+                lockOntoTarget(targetPlayer, gui)
             end
         end
     end)
 
     spawn(function()
         while isRunning do
-            local success, error = pcall(function()
+            local success, err = pcall(function()
                 updateGui(gui)
             end)
 
             if not success then
-                warn("Update error:", error)
+                warn("Update error:", err)
             end
 
             wait(UpdateFrequency)
