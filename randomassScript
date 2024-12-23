@@ -8,9 +8,10 @@ local UserInputService = game:GetService("UserInputService")
 -- Configuration
 local DETECTED_ANIMATION_IDS = {
     "rbxassetid://11343250001",     -- Original
-    "rbxassetid://17141153099",
-  
-    "rbxassetid://18462892217"
+    "rbxassetid://12447707844",
+    "rbxassetid://12983333733",
+    "rbxassetid://13927612951",
+    "rbxassetid://11365563255",
 }
 local TELEPORT_POSITION = Vector3.new(0, -435, 0)
 local BASEPLATE_Y = -500
@@ -215,6 +216,11 @@ local function resetCamera()
     if not camera then return end
     camera.CameraType = Enum.CameraType.Custom
 end
+
+-- Variables to keep track of the current target and lock state
+local currentTarget = nil
+local isLocked = false
+local lockConnection = nil
 
 -- Function to lock the camera onto a target player
 local function lockOntoTarget(targetPlayer, gui)
