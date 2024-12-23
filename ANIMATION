@@ -1,0 +1,418 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+
+-- UI Settings
+local THEME = {
+    BACKGROUND = Color3.fromRGB(32, 34, 37),
+    HEADER = Color3.fromRGB(47, 49, 54),
+    CARD = Color3.fromRGB(54, 57, 63),
+    TEXT_PRIMARY = Color3.fromRGB(255, 255, 255),
+    TEXT_SECONDARY = Color3.fromRGB(185, 187, 190),
+    ACCENT = Color3.fromRGB(114, 137, 218),
+    SUCCESS = Color3.fromRGB(67, 181, 129),
+    ERROR = Color3.fromRGB(240, 71, 71),
+}
+
+-- Animation settings
+local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local SLIDE_INFO = TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+-- Wait for character
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Get or create animator
+local animator = humanoid:FindFirstChildWhichIsA("Animator")
+if not animator then
+    animator = Instance.new("Animator")
+    animator.Parent = humanoid
+end
+
+-- Create main GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AnimationsLogger"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Create toggle button (always visible)
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 40, 0, 40)
+toggleButton.Position = UDim2.new(0, 20, 0.5, -20)
+toggleButton.BackgroundColor3 = THEME.ACCENT
+toggleButton.BorderSizePixel = 0
+toggleButton.Text = "📝"
+toggleButton.TextSize = 20
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Parent = screenGui
+
+-- Add corner radius to toggle button
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleButton
+
+-- Add shadow to toggle button
+local toggleShadow = Instance.new("ImageLabel")
+toggleShadow.Name = "Shadow"
+toggleShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+toggleShadow.BackgroundTransparency = 1
+toggleShadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+toggleShadow.Size = UDim2.new(1, 20, 1, 20)
+toggleShadow.ZIndex = -1
+toggleShadow.Image = "rbxassetid://6014261993"
+toggleShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+toggleShadow.ImageTransparency = 0.5
+toggleShadow.Parent = toggleButton
+
+-- Create main frame with drop shadow
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 350, 0, 400)
+mainFrame.Position = UDim2.new(0, 20, 0, 20)
+mainFrame.BackgroundColor3 = THEME.BACKGROUND
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- Add corner radius
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+-- Add drop shadow
+local shadow = Instance.new("ImageLabel")
+shadow.Name = "Shadow"
+shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+shadow.BackgroundTransparency = 1
+shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+shadow.Size = UDim2.new(1, 30, 1, 30)
+shadow.ZIndex = -1
+shadow.Image = "rbxassetid://6014261993"
+shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+shadow.ImageTransparency = 0.5
+shadow.Parent = mainFrame
+
+-- Create header
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 50)
+header.BackgroundColor3 = THEME.HEADER
+header.BorderSizePixel = 0
+header.Parent = mainFrame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 8)
+headerCorner.Parent = header
+
+local headerTitle = Instance.new("TextLabel")
+headerTitle.Name = "Title"
+headerTitle.Size = UDim2.new(1, -80, 1, 0)
+headerTitle.Position = UDim2.new(0, 10, 0, 0)
+headerTitle.BackgroundTransparency = 1
+headerTitle.Font = Enum.Font.GothamBold
+headerTitle.TextColor3 = THEME.TEXT_PRIMARY
+headerTitle.TextSize = 18
+headerTitle.Text = "Animation Logger"
+headerTitle.TextXAlignment = Enum.TextXAlignment.Left
+headerTitle.Parent = header
+
+-- Add close button to header
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -40, 0, 10)
+closeButton.BackgroundColor3 = THEME.ERROR
+closeButton.BorderSizePixel = 0
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextColor3 = THEME.TEXT_PRIMARY
+closeButton.TextSize = 14
+closeButton.Text = "×"
+closeButton.Parent = header
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeButton
+
+-- Create scrolling frame
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Name = "AnimationsList"
+scrollingFrame.Size = UDim2.new(1, -20, 1, -120)
+scrollingFrame.Position = UDim2.new(0, 10, 0, 60)
+scrollingFrame.BackgroundTransparency = 1
+scrollingFrame.ScrollBarThickness = 4
+scrollingFrame.ScrollBarImageColor3 = THEME.TEXT_SECONDARY
+scrollingFrame.Parent = mainFrame
+
+-- Add padding and layout
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 5)
+padding.PaddingBottom = UDim.new(0, 5)
+padding.Parent = scrollingFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 10)
+listLayout.Parent = scrollingFrame
+
+-- Create animation card function
+local function createAnimationCard(animName, animId)
+    local card = Instance.new("Frame")
+    card.Name = animName
+    card.Size = UDim2.new(1, 0, 0, 80)
+    card.BackgroundColor3 = THEME.CARD
+    card.BorderSizePixel = 0
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 6)
+    cardCorner.Parent = card
+
+    -- Animation name
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, -20, 0, 25)
+    nameLabel.Position = UDim2.new(0, 10, 0, 5)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Font = Enum.Font.GothamSemibold
+    nameLabel.TextColor3 = THEME.TEXT_PRIMARY
+    nameLabel.TextSize = 14
+    nameLabel.Text = animName
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = card
+
+    -- Animation ID
+    local idLabel = Instance.new("TextLabel")
+    idLabel.Name = "IdLabel"
+    idLabel.Size = UDim2.new(1, -100, 0, 25)
+    idLabel.Position = UDim2.new(0, 10, 0, 30)
+    idLabel.BackgroundTransparency = 1
+    idLabel.Font = Enum.Font.Gotham
+    idLabel.TextColor3 = THEME.TEXT_SECONDARY
+    idLabel.TextSize = 14
+    idLabel.Text = animId
+    idLabel.TextXAlignment = Enum.TextXAlignment.Left
+    idLabel.Parent = card
+
+    -- Copy button
+    local copyButton = Instance.new("TextButton")
+    copyButton.Name = "CopyButton"
+    copyButton.Size = UDim2.new(0, 80, 0, 30)
+    copyButton.Position = UDim2.new(1, -90, 0, 25)
+    copyButton.BackgroundColor3 = THEME.ACCENT
+    copyButton.BorderSizePixel = 0
+    copyButton.Font = Enum.Font.GothamBold
+    copyButton.TextColor3 = THEME.TEXT_PRIMARY
+    copyButton.TextSize = 14
+    copyButton.Text = "Copy ID"
+    copyButton.Parent = card
+
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 4)
+    buttonCorner.Parent = copyButton
+
+    -- Copy button click handler
+    copyButton.MouseButton1Click:Connect(function()
+        local success = pcall(function()
+            setclipboard(animId)
+        end)
+
+        -- Visual feedback
+        local feedbackColor = success and THEME.SUCCESS or THEME.ERROR
+        local originalColor = copyButton.BackgroundColor3
+
+        local colorTween = TweenService:Create(copyButton, TWEEN_INFO, {
+            BackgroundColor3 = feedbackColor
+        })
+        colorTween:Play()
+
+        copyButton.Text = success and "Copied!" or "Error"
+
+        task.delay(1, function()
+            TweenService:Create(copyButton, TWEEN_INFO, {
+                BackgroundColor3 = originalColor
+            }):Play()
+            copyButton.Text = "Copy ID"
+        end)
+    end)
+
+    -- Entrance animation
+    card.BackgroundTransparency = 1
+    nameLabel.TextTransparency = 1
+    idLabel.TextTransparency = 1
+    copyButton.BackgroundTransparency = 1
+    copyButton.TextTransparency = 1
+
+    card.Parent = scrollingFrame
+
+    -- Play entrance animations
+    TweenService:Create(card, TWEEN_INFO, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(nameLabel, TWEEN_INFO, {TextTransparency = 0}):Play()
+    TweenService:Create(idLabel, TWEEN_INFO, {TextTransparency = 0}):Play()
+    TweenService:Create(copyButton, TWEEN_INFO, {
+        BackgroundTransparency = 0,
+        TextTransparency = 0
+    }):Play()
+
+    return card
+end
+
+-- Create clear button
+local clearButton = Instance.new("TextButton")
+clearButton.Name = "ClearButton"
+clearButton.Size = UDim2.new(1, -20, 0, 40)
+clearButton.Position = UDim2.new(0, 10, 1, -50)
+clearButton.BackgroundColor3 = THEME.ERROR
+clearButton.BorderSizePixel = 0
+clearButton.Font = Enum.Font.GothamBold
+clearButton.TextColor3 = THEME.TEXT_PRIMARY
+clearButton.TextSize = 14
+clearButton.Text = "Clear History"
+clearButton.Parent = mainFrame
+
+local clearCorner = Instance.new("UICorner")
+clearCorner.CornerRadius = UDim.new(0, 6)
+clearCorner.Parent = clearButton
+
+-- Clear button handler
+clearButton.MouseButton1Click:Connect(function()
+    -- Animate each card's removal
+    for _, card in ipairs(scrollingFrame:GetChildren()) do
+        if card:IsA("Frame") then
+            local tweens = {}
+            for _, child in ipairs(card:GetChildren()) do
+                if child:IsA("TextLabel") or child:IsA("TextButton") then
+                    table.insert(tweens, TweenService:Create(child, TWEEN_INFO, {TextTransparency = 1}))
+                end
+            end
+            table.insert(tweens, TweenService:Create(card, TWEEN_INFO, {BackgroundTransparency = 1}))
+
+            for _, tween in ipairs(tweens) do
+                tween:Play()
+            end
+
+            task.delay(TWEEN_INFO.Time, function()
+                card:Destroy()
+            end)
+        end
+    end
+
+    scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+end)
+
+-- Window dragging functionality
+local isDragging = false
+local dragStart = nil
+local startPos = nil
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+-- Toggle button dragging functionality
+local isDraggingToggle = false
+local toggleDragStart = nil
+local toggleStartPos = nil
+
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingToggle = true
+        toggleDragStart = input.Position
+        toggleStartPos = toggleButton.Position
+    end
+end)
+
+-- [Previous code remains the same until the toggle button dragging functionality...]
+
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and isDraggingToggle then
+        local delta = input.Position - toggleDragStart
+        toggleButton.Position = UDim2.new(
+            toggleStartPos.X.Scale,
+            toggleStartPos.X.Offset + delta.X,
+            toggleStartPos.Y.Scale,
+            toggleStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingToggle = false
+    end
+end)
+
+-- GUI Toggle functionality
+local function closeGui()
+    local slideTween = TweenService:Create(mainFrame, SLIDE_INFO, {
+        Position = UDim2.new(-1, 0, 0, 20)
+    })
+    slideTween:Play()
+    slideTween.Completed:Wait()
+    mainFrame.Visible = false
+end
+
+local function openGui()
+    mainFrame.Position = UDim2.new(-1, 0, 0, 20)
+    mainFrame.Visible = true
+    TweenService:Create(mainFrame, SLIDE_INFO, {
+        Position = UDim2.new(0, 20, 0, 20)
+    }):Play()
+end
+
+-- Connect buttons
+local isOpen = true
+toggleButton.MouseButton1Click:Connect(function()
+    if not isDraggingToggle then
+        if isOpen then
+            closeGui()
+        else
+            openGui()
+        end
+        isOpen = not isOpen
+    end
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    closeGui()
+    isOpen = false
+end)
+
+-- Animation played handler
+animator.AnimationPlayed:Connect(function(animationTrack)
+    local animName = (animationTrack.Animation and animationTrack.Animation.Name) or "Unknown Animation"
+    local animId = "Unknown ID"
+
+    if animationTrack.Animation and animationTrack.Animation.AnimationId then
+        local fullId = animationTrack.Animation.AnimationId
+        local extracted = string.match(fullId, "(%d+)$")
+        if extracted then
+            animId = extracted
+        end
+    end
+
+    local card = createAnimationCard(animName, animId)
+    scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y)
+end)
