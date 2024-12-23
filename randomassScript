@@ -8,9 +8,8 @@ local UserInputService = game:GetService("UserInputService")
 -- Configuration
 local DETECTED_ANIMATION_IDS = {
     "rbxassetid://11343250001",     -- Original
-    "rbxassetid://77727115892579",
     "rbxassetid://17141153099",
-    "rbxassetid://17354976067",
+  
     "rbxassetid://18462892217"
 }
 local TELEPORT_POSITION = Vector3.new(0, -435, 0)
