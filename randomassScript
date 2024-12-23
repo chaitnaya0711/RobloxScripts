@@ -8,7 +8,15 @@ local lockConnection = nil
 local isLocked = false
 local isRunning = true
 
-local ANIMATION_ID = "rbxassetid://11343250001"
+-- Put all the animation IDs you want to detect in this table:
+local DETECTED_ANIMATION_IDS = {
+    "rbxassetid://11343250001",     -- Original
+    "rbxassetid://77727115892579",
+    "rbxassetid://17141153099",
+    "rbxassetid://17354976067",
+    "rbxassetid://18462892217"
+}
+
 local TELEPORT_POSITION = Vector3.new(0, -435, 0)
 
 -- Create a baseplate at Y = -500
@@ -39,33 +47,36 @@ local function forceTeleportPlayerToBaseplate()
             warn("Failed to find character or root for local player during teleport")
             return
         end
-        
+
         -- Anchor the root part to prevent movement
         root.Anchored = true
-        
+
         -- Brute force multiple teleports
         for i = 1, 3 do
             root.CFrame = CFrame.new(TELEPORT_POSITION)
             RunService.Heartbeat:Wait()  -- Wait a frame to let physics update
         end
-        
+
         -- Wait one second for stability
         wait(1)
-        
+
         -- Unanchor to restore normal movement
         root.Anchored = false
     end)
-    
+
     if not success then
         warn("Error in forceTeleportPlayerToBaseplate:", err)
     end
 end
 
--- When the animation is played, brute force the teleport
+-- When the animation is played, brute force the teleport if the AnimationId is in our table
 local function teleportLocalPlayerIfAnimation(track)
     local success, err = pcall(function()
-        if track.Animation and track.Animation.AnimationId == ANIMATION_ID then
-            forceTeleportPlayerToBaseplate()
+        if track.Animation then
+            local animId = track.Animation.AnimationId
+            if table.find(DETECTED_ANIMATION_IDS, animId) then
+                forceTeleportPlayerToBaseplate()
+            end
         end
     end)
     if not success then
@@ -91,7 +102,7 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     connectAnimationListener(character)
 end)
 
--- GUI creation unchanged
+-- GUI creation
 local function createGui()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "PlayerTrackerGui"
