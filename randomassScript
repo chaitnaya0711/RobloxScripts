@@ -1,11 +1,13 @@
--- Services
+--!strict
+
+--// Services
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
--- Configuration
+--// Configuration
 local DETECTED_ANIMATION_IDS = {
     "rbxassetid://11343250001",     -- Original
     "rbxassetid://12447707844",
@@ -15,15 +17,11 @@ local DETECTED_ANIMATION_IDS = {
 }
 local TELEPORT_POSITION = Vector3.new(0, -435, 0)
 local BASEPLATE_Y = -500
-local CAMERA_OFFSET = Vector3.new(0, 10, 0) -- Adjust height as needed
 
--- State Variables
-local isTeleporting = false
-local originalCameraCFrame = nil
-local cameraLockConnection = nil
+--// State Variables
 local isRunning = true
 
--- Create a baseplate at Y = -500
+--// Create a baseplate at Y = -500
 local function createBaseplate()
     if workspace:FindFirstChild("CustomBaseplate") then return end
     local baseplate = Instance.new("Part")
@@ -37,7 +35,7 @@ end
 
 createBaseplate()
 
--- Safely get character and root part
+--// Safely get character and root part
 local function getCharacterRoot(player)
     local char = player.Character
     if not char then return nil end
@@ -45,74 +43,16 @@ local function getCharacterRoot(player)
     return char, root
 end
 
--- Function to teleport the local player's camera to the baseplate
-local function teleportCameraToBaseplate()
-    if isTeleporting then return end
-    isTeleporting = true
-
-    local camera = workspace.CurrentCamera
-    if not camera then
-        warn("No camera found")
-        isTeleporting = false
-        return
-    end
-
-    -- Save the original camera CFrame
-    originalCameraCFrame = camera.CFrame
-
-    -- Set camera to baseplate position with an offset
-    camera.CameraType = Enum.CameraType.Scriptable
-    camera.CFrame = CFrame.new(TELEPORT_POSITION + CAMERA_OFFSET, TELEPORT_POSITION)
-
-    -- Lock the camera's CFrame to remain at the baseplate
-    cameraLockConnection = RunService.RenderStepped:Connect(function()
-        camera.CFrame = CFrame.new(TELEPORT_POSITION + CAMERA_OFFSET, TELEPORT_POSITION)
-    end)
-end
-
--- Function to restore the camera to its original position
-local function restoreCamera()
-    if not isTeleporting then return end
-    isTeleporting = false
-
-    local camera = workspace.CurrentCamera
-    if not camera then return end
-
-    -- Restore the camera's original CFrame
-    if originalCameraCFrame then
-        camera.CameraType = Enum.CameraType.Custom
-        camera.CFrame = originalCameraCFrame
-    else
-        camera.CameraType = Enum.CameraType.Custom
-    end
-
-    -- Disconnect the camera lock
-    if cameraLockConnection then
-        cameraLockConnection:Disconnect()
-        cameraLockConnection = nil
-    end
-end
-
--- Function to handle teleportation when a detected animation is played
+--// Function to handle teleportation when a detected animation is played
 local function handleDetectedAnimation(player, track)
-    if isTeleporting then return end
-
-    -- Teleport the camera
-    teleportCameraToBaseplate()
-
-    -- Optional: Teleport the player to the baseplate
+    -- Teleport the local player (instead of the camera)
     local char, root = getCharacterRoot(LocalPlayer)
     if char and root then
         root.CFrame = CFrame.new(TELEPORT_POSITION + Vector3.new(0, 5, 0)) -- Slightly above the baseplate
     end
-
-    -- Connect to the animation's Stopped event to restore the camera
-    track.Stopped:Connect(function()
-        restoreCamera()
-    end)
 end
 
--- Function to connect to a player's Animator and listen for animations
+--// Function to connect to a player's Animator and listen for animations
 local function connectAnimationListener(player)
     local success, err = pcall(function()
         local char = player.Character or player.CharacterAdded:Wait()
@@ -132,19 +72,19 @@ local function connectAnimationListener(player)
     end
 end
 
--- Connect to all current players
+--// Connect to all current players
 for _, player in ipairs(Players:GetPlayers()) do
     connectAnimationListener(player)
 end
 
--- Connect to future players
+--// Connect to future players
 Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function()
         connectAnimationListener(player)
     end)
 end)
 
--- GUI Creation
+--// GUI Creation
 local function createGui()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "PlayerTrackerGui"
@@ -188,7 +128,7 @@ local function createGui()
     }
 end
 
--- Function to get the player with the lowest health
+--// Function to get the player with the lowest health
 local function getPlayerWithLowestHealth()
     local lowestHealthPlayer = nil
     local lowestHealth = math.huge
@@ -210,19 +150,19 @@ local function getPlayerWithLowestHealth()
     return lowestHealthPlayer
 end
 
--- Function to reset the camera to default behavior
+--// Function to reset the camera to default behavior
 local function resetCamera()
     local camera = workspace.CurrentCamera
     if not camera then return end
     camera.CameraType = Enum.CameraType.Custom
 end
 
--- Variables to keep track of the current target and lock state
+--// Variables to keep track of the current target and lock state
 local currentTarget = nil
 local isLocked = false
 local lockConnection = nil
 
--- Function to lock the camera onto a target player
+--// Function to lock the camera onto a target player
 local function lockOntoTarget(targetPlayer, gui)
     if lockConnection then 
         lockConnection:Disconnect()
@@ -270,7 +210,7 @@ local function lockOntoTarget(targetPlayer, gui)
     end)
 end
 
--- Function to update the GUI with the current target's health
+--// Function to update the GUI with the current target's health
 local function updateGui(gui)
     local success, err = pcall(function()
         local targetPlayer = getPlayerWithLowestHealth()
@@ -298,7 +238,7 @@ local function updateGui(gui)
     end
 end
 
--- Function to teleport the local player to a target player
+--// Function to teleport the local player to a target player
 local function teleportToPlayer(targetPlayer)
     local success, err = pcall(function()
         if not targetPlayer then return false end
@@ -317,7 +257,7 @@ local function teleportToPlayer(targetPlayer)
     end
 end
 
--- Initialization Function
+--// Initialization Function
 local function init()
     local gui = createGui()
 
@@ -376,11 +316,23 @@ local function init()
         if lockConnection then
             lockConnection:Disconnect()
         end
-        if isTeleporting then
-            restoreCamera()
-        end
     end)
 end
 
--- Start the Script
+--// Start the Script
 init()
+
+--------------------------------------------------------------------------------
+-- ADDITIONAL: Detect if the LocalPlayer is removed (kicked, banned, or disconnected),
+-- then set the game.JobId to the clipboard.
+--------------------------------------------------------------------------------
+Players.PlayerRemoving:Connect(function(player)
+    -- Only do this for our LocalPlayer
+    if player == LocalPlayer then
+        -- 'setclipboard' requires an exploit environment or special permission
+        pcall(function()
+            setclipboard(game.JobId)
+            print("[INFO] JobId has been copied to your clipboard.")
+        end)
+    end
+end)
