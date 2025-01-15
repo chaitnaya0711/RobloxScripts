@@ -1,0 +1,98 @@
+local Players = game:GetService("Players")
+local targetAnimationId = "rbxassetid://12447707844"
+
+-- Function to paint the character red
+local function paintCharacterRed(character)
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part:SetAttribute("OriginalColor", part.Color) -- Store original color
+            part.Color = Color3.new(1, 0, 0) -- Red color
+        elseif part:IsA("Decal") then
+            part:SetAttribute("OriginalColor3", part.Color3) -- Store original decal color
+            part.Color3 = Color3.new(1, 0, 0)
+        end
+    end
+end
+
+-- Function to reset the character's colors to original
+local function resetCharacterColors(character)
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part:GetAttribute("OriginalColor") then
+            part.Color = part:GetAttribute("OriginalColor")
+            part:SetAttribute("OriginalColor", nil) -- Clear the stored color
+        elseif part:IsA("Decal") and part:GetAttribute("OriginalColor3") then
+            part.Color3 = part:GetAttribute("OriginalColor3")
+            part:SetAttribute("OriginalColor3", nil) -- Clear the stored color
+        end
+    end
+end
+
+-- Function to get a nil instance by name and class
+local function getNilInstance(name, class)
+    for _, v in ipairs(getnilinstances()) do
+        if v.ClassName == class and v.Name == name then
+            return v
+        end
+    end
+    return nil
+end
+
+-- Function to monitor the presence of the "Death Counter" tool
+local function monitorDeathCounter(character)
+    task.spawn(function()
+        while character.Parent do
+            local tool = getNilInstance("Death Counter", "Tool")
+            if not tool then
+                resetCharacterColors(character) -- Reset colors if the tool is not found
+            else
+                paintCharacterRed(character) -- Keep the character red if the tool exists
+            end
+            task.wait(1) -- Check every second
+        end
+    end)
+end
+
+-- Function to monitor animations on the character
+local function monitorAnimations(character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    local animator = humanoid:FindFirstChildWhichIsA("Animator")
+    if not animator then
+        animator = humanoid:WaitForChild("Animator", 5)
+        if not animator then return end
+    end
+
+    animator.AnimationPlayed:Connect(function(animationTrack)
+        local animation = animationTrack.Animation
+        if animation and animation.AnimationId == targetAnimationId then
+            paintCharacterRed(character) -- Paint red when the target animation plays
+        end
+    end)
+end
+
+-- Setup for a newly added character
+local function handleCharacter(character)
+    character:WaitForChild("Head", 5) -- Ensure the character's head exists
+    monitorAnimations(character) -- Monitor animations
+    monitorDeathCounter(character) -- Monitor the presence of the "Death Counter" tool
+end
+
+-- Setup for every player
+local function setupPlayer(player)
+    if player.Character then
+        handleCharacter(player.Character)
+    end
+
+    player.CharacterAdded:Connect(function(character)
+        handleCharacter(character)
+    end)
+end
+
+-- Apply setup for players already in the game
+for _, player in ipairs(Players:GetPlayers()) do
+    setupPlayer(player)
+end
+
+-- Connect new players
+Players.PlayerAdded:Connect(setupPlayer) fix the script not working properly what it's supposed to do is when it detects the animation id being played anywhere  it turns their avatar red on the client if it detects that  the avatar becomes red on whose the animation has been played next when it detects that the
