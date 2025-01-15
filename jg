@@ -1,98 +1,135 @@
 local Players = game:GetService("Players")
-local targetAnimationId = "rbxassetid://12447707844"
+local RunService = game:GetService("RunService")
 
--- Function to paint the character red
-local function paintCharacterRed(character)
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part:SetAttribute("OriginalColor", part.Color) -- Store original color
-            part.Color = Color3.new(1, 0, 0) -- Red color
-        elseif part:IsA("Decal") then
-            part:SetAttribute("OriginalColor3", part.Color3) -- Store original decal color
-            part.Color3 = Color3.new(1, 0, 0)
+local DEATH_COUNTER_NAME = "Death Counter"
+
+-- Configuration
+local DOT_CONFIG = {
+    Size = UDim2.new(0, 12, 0, 12), -- Size of the dot
+    Color = Color3.new(1, 0, 0),     -- Red color
+    OffsetY = 3,                     -- How far above the head
+    Transparency = 0.1               -- Make it slightly transparent
+}
+
+local markerGuis = {}
+
+local function createDot(player)
+    -- Create BillboardGui
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "MarkerDot"
+    billboardGui.AlwaysOnTop = true
+    billboardGui.Size = UDim2.new(0, 50, 0, 50)
+    billboardGui.StudsOffsetWorldSpace = Vector3.new(0, DOT_CONFIG.OffsetY, 0)
+    billboardGui.Adornee = player.Character:WaitForChild("Head")
+    
+    -- Create the dot frame
+    local dot = Instance.new("Frame")
+    dot.Name = "Dot"
+    dot.Size = DOT_CONFIG.Size
+    dot.Position = UDim2.new(0.5, -DOT_CONFIG.Size.X.Offset/2, 0.5, -DOT_CONFIG.Size.Y.Offset/2)
+    dot.BackgroundColor3 = DOT_CONFIG.Color
+    dot.BackgroundTransparency = DOT_CONFIG.Transparency
+    dot.BorderSizePixel = 0
+    
+    -- Make the dot circular
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = dot
+    
+    -- Add a subtle glow
+    local glow = Instance.new("UIStroke")
+    glow.Name = "Glow"
+    glow.Color = DOT_CONFIG.Color
+    glow.Thickness = 2
+    glow.Transparency = 0.5
+    glow.Parent = dot
+    
+    dot.Parent = billboardGui
+    billboardGui.Parent = player.Character.Head
+    
+    return billboardGui
+end
+
+local function hasDeathCounter(player)
+    local backpack = player:FindFirstChild("Backpack")
+    local character = player.Character
+    
+    return (backpack and backpack:FindFirstChild(DEATH_COUNTER_NAME)) or
+           (character and character:FindFirstChild(DEATH_COUNTER_NAME))
+end
+
+local function updateMarker(player)
+    if not player.Character or not player.Character:FindFirstChild("Head") then return end
+    
+    local existingMarker = markerGuis[player]
+    local hasCounter = hasDeathCounter(player)
+    
+    if hasCounter then
+        if not existingMarker or not existingMarker.Parent then
+            markerGuis[player] = createDot(player)
+        end
+    else
+        if existingMarker then
+            existingMarker:Destroy()
+            markerGuis[player] = nil
         end
     end
 end
 
--- Function to reset the character's colors to original
-local function resetCharacterColors(character)
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and part:GetAttribute("OriginalColor") then
-            part.Color = part:GetAttribute("OriginalColor")
-            part:SetAttribute("OriginalColor", nil) -- Clear the stored color
-        elseif part:IsA("Decal") and part:GetAttribute("OriginalColor3") then
-            part.Color3 = part:GetAttribute("OriginalColor3")
-            part:SetAttribute("OriginalColor3", nil) -- Clear the stored color
-        end
+local function onCharacterAdded(player, character)
+    -- Wait for the head to load
+    local head = character:WaitForChild("Head", 5)
+    if not head then return end
+    
+    -- Clear any existing marker
+    local existingMarker = markerGuis[player]
+    if existingMarker then
+        existingMarker:Destroy()
+        markerGuis[player] = nil
     end
+    
+    -- Update the marker
+    updateMarker(player)
 end
 
--- Function to get a nil instance by name and class
-local function getNilInstance(name, class)
-    for _, v in ipairs(getnilinstances()) do
-        if v.ClassName == class and v.Name == name then
-            return v
-        end
-    end
-    return nil
-end
-
--- Function to monitor the presence of the "Death Counter" tool
-local function monitorDeathCounter(character)
-    task.spawn(function()
-        while character.Parent do
-            local tool = getNilInstance("Death Counter", "Tool")
-            if not tool then
-                resetCharacterColors(character) -- Reset colors if the tool is not found
-            else
-                paintCharacterRed(character) -- Keep the character red if the tool exists
-            end
-            task.wait(1) -- Check every second
-        end
-    end)
-end
-
--- Function to monitor animations on the character
-local function monitorAnimations(character)
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-
-    local animator = humanoid:FindFirstChildWhichIsA("Animator")
-    if not animator then
-        animator = humanoid:WaitForChild("Animator", 5)
-        if not animator then return end
-    end
-
-    animator.AnimationPlayed:Connect(function(animationTrack)
-        local animation = animationTrack.Animation
-        if animation and animation.AnimationId == targetAnimationId then
-            paintCharacterRed(character) -- Paint red when the target animation plays
-        end
-    end)
-end
-
--- Setup for a newly added character
-local function handleCharacter(character)
-    character:WaitForChild("Head", 5) -- Ensure the character's head exists
-    monitorAnimations(character) -- Monitor animations
-    monitorDeathCounter(character) -- Monitor the presence of the "Death Counter" tool
-end
-
--- Setup for every player
-local function setupPlayer(player)
-    if player.Character then
-        handleCharacter(player.Character)
-    end
-
+local function monitorPlayer(player)
+    -- Monitor character changes
     player.CharacterAdded:Connect(function(character)
-        handleCharacter(character)
+        onCharacterAdded(player, character)
     end)
+    
+    -- Monitor backpack changes
+    task.spawn(function()
+        local backpack = player:WaitForChild("Backpack", 10)
+        if backpack then
+            backpack.ChildAdded:Connect(function()
+                updateMarker(player)
+            end)
+            backpack.ChildRemoved:Connect(function()
+                updateMarker(player)
+            end)
+        end
+    end)
+    
+    -- Set up initial state if character exists
+    if player.Character then
+        onCharacterAdded(player, player.Character)
+    end
 end
 
--- Apply setup for players already in the game
+-- Clean up markers when players leave
+Players.PlayerRemoving:Connect(function(player)
+    local marker = markerGuis[player]
+    if marker then
+        marker:Destroy()
+        markerGuis[player] = nil
+    end
+end)
+
+-- Initialize for existing players
 for _, player in ipairs(Players:GetPlayers()) do
-    setupPlayer(player)
+    monitorPlayer(player)
 end
 
--- Connect new players
-Players.PlayerAdded:Connect(setupPlayer) fix the script not working properly what it's supposed to do is when it detects the animation id being played anywhere  it turns their avatar red on the client if it detects that  the avatar becomes red on whose the animation has been played next when it detects that the
+-- Monitor new players
+Players.PlayerAdded:Connect(monitorPlayer)
