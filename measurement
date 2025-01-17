@@ -1,816 +1,367 @@
--- Services
-local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
+-- Configuration Module
+local Config = {}
 
--- Variables
-local localPlayer = Players.LocalPlayer
-local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
-local mouse = localPlayer:GetMouse()
+Config.UI = {
+    MainFrame = {
+        Size = UDim2.new(0, 200, 0, 140),
+        Color = Color3.fromRGB(32, 34, 37),
+        CornerRadius = UDim.new(0, 10)
+    },
+    TextColor = Color3.fromRGB(255, 255, 255),
+    AccentColor = Color3.fromRGB(88, 101, 242),  -- Discord Blurple
+    ButtonColor = Color3.fromRGB(47, 49, 54),
+    HoverColor = Color3.fromRGB(57, 59, 64),
+    Font = Enum.Font.GothamBold,
+    SecondaryFont = Enum.Font.Gotham
+}
 
--- Tables to hold checkpoints, lines, and tracked entities
-local checkpoints = {}
-local lines = {}
-local trackedEntities = {}  -- Holds up to 2 entities (players or objects)
-local announcementInProgress = false  -- To prevent multiple alerts from showing at the same time
-local MAX_TRACKED_ENTITIES = 2  -- Maximum number of entities that can be tracked
+Config.Measurement = {
+    OutlineColor = Color3.fromRGB(88, 101, 242),
+    OutlineTransparency = 0.2,
+    LabelBackgroundColor = Color3.fromRGB(32, 34, 37),
+    LabelTextColor = Color3.fromRGB(255, 255, 255),
+    Units = {
+        ["Studs"] = 1,
+        ["Meters"] = 3.571428571,
+        ["Feet"] = 11.7142857
+    }
+}
 
--- Create the ScreenGui
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "MapMeasuringGUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+-- UI Module
+local UIModule = {}
 
--- Function to create rounded corners
-local function makeRounded(instance, radius)
-    local success, uiCorner = pcall(function()
-        uiCorner = Instance.new("UICorner")
-        uiCorner.CornerRadius = UDim.new(0, radius)
-        uiCorner.Parent = instance
+function UIModule.new()
+    local player = game:GetService("Players").LocalPlayer
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "MeasurementSystem"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = player.PlayerGui
+
+    -- Main container with enhanced shadow
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = Config.UI.MainFrame.Size
+    mainFrame.Position = UDim2.new(1, -220, 0, 20)
+    mainFrame.BackgroundColor3 = Config.UI.MainFrame.Color
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+
+    -- Enhanced shadow effect
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.BackgroundTransparency = 1
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    shadow.Size = UDim2.new(1, 40, 1, 40)
+    shadow.ZIndex = -1
+    shadow.Image = "rbxassetid://5554236805"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.5
+    shadow.Parent = mainFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = Config.UI.MainFrame.CornerRadius
+    corner.Parent = mainFrame
+
+    -- Gradient header
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, 35)
+    header.BackgroundColor3 = Config.UI.AccentColor
+    header.Parent = mainFrame
+
+    local headerGradient = Instance.new("UIGradient")
+    headerGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Config.UI.AccentColor),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(Config.UI.AccentColor.R * 0.8, 
+                                                   Config.UI.AccentColor.G * 0.8, 
+                                                   Config.UI.AccentColor.B * 0.8))
+    })
+    headerGradient.Parent = header
+
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 10)
+    headerCorner.Parent = header
+
+    -- Enhanced toggle button
+    local toggleButton = Instance.new("ImageButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(0, 24, 0, 24)
+    toggleButton.Position = UDim2.new(0, 10, 0, 5)
+    toggleButton.BackgroundTransparency = 1
+    toggleButton.Image = "rbxassetid://3926305904"
+    toggleButton.ImageRectOffset = Vector2.new(924, 724)
+    toggleButton.ImageRectSize = Vector2.new(36, 36)
+    toggleButton.Parent = header
+
+    -- Enhanced title
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Position = UDim2.new(0, 45, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "Measurement Tool"
+    title.TextColor3 = Config.UI.TextColor
+    title.Font = Config.UI.Font
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = header
+
+    -- Enhanced measurements display
+    local measurements = Instance.new("TextLabel")
+    measurements.Name = "Measurements"
+    measurements.Size = UDim2.new(1, -20, 0, 70)
+    measurements.Position = UDim2.new(0, 10, 0, 40)
+    measurements.BackgroundTransparency = 1
+    measurements.Text = "Click an object to measure"
+    measurements.TextColor3 = Config.UI.TextColor
+    measurements.Font = Config.UI.SecondaryFont
+    measurements.TextSize = 14
+    measurements.TextWrapped = true
+    measurements.TextXAlignment = Enum.TextXAlignment.Left
+    measurements.Parent = mainFrame
+
+    -- Enhanced unit selector
+    local unitButton = Instance.new("TextButton")
+    unitButton.Name = "UnitButton"
+    unitButton.Size = UDim2.new(0, 80, 0, 26)
+    unitButton.Position = UDim2.new(1, -90, 0, 105)
+    unitButton.BackgroundColor3 = Config.UI.ButtonColor
+    unitButton.Text = "Studs"
+    unitButton.TextColor3 = Config.UI.TextColor
+    unitButton.Font = Config.UI.SecondaryFont
+    unitButton.TextSize = 14
+    unitButton.AutoButtonColor = false
+    unitButton.Parent = mainFrame
+
+    local unitCorner = Instance.new("UICorner")
+    unitCorner.CornerRadius = UDim.new(0, 6)
+    unitCorner.Parent = unitButton
+
+    -- Button hover effect
+    unitButton.MouseEnter:Connect(function()
+        game:GetService("TweenService"):Create(unitButton, 
+            TweenInfo.new(0.2), 
+            {BackgroundColor3 = Config.UI.HoverColor}
+        ):Play()
     end)
-    if not success then
-        warn("Failed to create UICorner for", instance.Name)
-    end
-end
 
--- Function to format distance (meters to kilometers if >=1000)
-local function formatDistance(distance)
-    if distance >= 1000 then
-        local km = distance / 1000
-        return string.format("%.2f km", km)
-    else
-        return string.format("%.0f m", distance)
-    end
-end
-
--- Function to get dynamic size based on screen size
-local function getDynamicSize()
-    local camera = Workspace.CurrentCamera
-    if not camera then 
-        warn("Camera not found!")
-        return UDim2.new(0, 600, 0, 800)  -- Fallback size
-    end
-    local viewportSize = camera.ViewportSize
-    local minDimension = math.min(viewportSize.X, viewportSize.Y)
-    return UDim2.new(0, math.floor(minDimension * 0.6), 0, math.floor(minDimension * 0.8))
-end
-
--- Create the main frame with a sleek dark theme
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Size = getDynamicSize()
-MainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)  -- Start off-screen
-MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.BorderSizePixel = 0
-MainFrame.ClipsDescendants = true
-MainFrame.Visible = false
-MainFrame.Parent = ScreenGui
-makeRounded(MainFrame, 20)
-
--- Create the title bar
-local TitleBar = Instance.new("Frame")
-TitleBar.Name = "TitleBar"
-TitleBar.Size = UDim2.new(1, 0, 0, 50)
-TitleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
-makeRounded(TitleBar, 10)
-
--- Title label
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Name = "TitleLabel"
-TitleLabel.Size = UDim2.new(1, 0, 1, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "Map Measuring Tool"
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextSize = 20
-TitleLabel.Parent = TitleBar
-
--- Create the close button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(1, -40, 0.5, 0)
-CloseButton.AnchorPoint = Vector2.new(0.5, 0.5)
-CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseButton.BorderSizePixel = 0
-CloseButton.Parent = TitleBar
-makeRounded(CloseButton, 10)
-
--- Create the ScrollingFrame for buttons
-local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Name = "ScrollFrame"
-ScrollFrame.Size = UDim2.new(0.95, 0, 0.85, -60)  -- Adjusted size to fit within MainFrame
-ScrollFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-ScrollFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.ScrollBarThickness = 6
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 5, 0)  -- Increased to allow scrolling
-ScrollFrame.Parent = MainFrame
-
--- UIListLayout for organizing buttons
-local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.Parent = ScrollFrame
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.Padding = UDim.new(0, 10)
-
--- Function to create buttons
-local function createButton(name, text, backgroundColor, layoutOrder)
-    local button = Instance.new("TextButton")
-    button.Name = name
-    button.Size = UDim2.new(1, 0, 0, 50)
-    button.Text = text
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.Font = Enum.Font.Gotham
-    button.TextSize = 16
-    button.BackgroundColor3 = backgroundColor
-    button.BorderSizePixel = 0
-    button.LayoutOrder = layoutOrder
-    button.Parent = ScrollFrame
-    makeRounded(button, 10)
-    return button
-end
-
--- Create all buttons
-local AddCheckpointButton = createButton("AddCheckpointButton", "Add Checkpoint", Color3.fromRGB(52, 152, 219), 1)
-local RemoveCheckpointButton = createButton("RemoveCheckpointButton", "Remove All Checkpoints", Color3.fromRGB(231, 76, 60), 2)
-local ShowTotalDistanceButton = createButton("ShowTotalDistanceButton", "Show Total Distance", Color3.fromRGB(52, 152, 219), 3)
-local ShowMapSizeButton = createButton("ShowMapSizeButton", "Show Map Size", Color3.fromRGB(52, 152, 219), 4)
-local NearestPlayerButton = createButton("NearestPlayerButton", "Show Nearest Player", Color3.fromRGB(46, 204, 113), 5)
-local FurthestPlayerButton = createButton("FurthestPlayerButton", "Show Furthest Player", Color3.fromRGB(155, 89, 182), 6)
-
--- Create the toggle button
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Name = "ToggleButton"
-ToggleButton.Size = UDim2.new(0, 150, 0, 50)
-ToggleButton.Position = UDim2.new(0.5, 0, 0.95, 0)
-ToggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
-ToggleButton.Text = "Toggle GUI"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
-ToggleButton.BorderSizePixel = 0
-ToggleButton.Parent = ScreenGui
-makeRounded(ToggleButton, 10)
-
--- Function to show announcements with better error handling
-local function showAnnouncement(message)
-    if announcementInProgress then return end  -- Prevent multiple alerts
-    announcementInProgress = true
-
-    local AnnouncementFrame = Instance.new("Frame")
-    AnnouncementFrame.Size = UDim2.new(0, 300, 0, 100)  -- Increased height for multi-line
-    AnnouncementFrame.Position = UDim2.new(0.5, 0, 0.1, 0)
-    AnnouncementFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    AnnouncementFrame.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
-    AnnouncementFrame.BorderSizePixel = 0
-    AnnouncementFrame.Parent = ScreenGui
-    makeRounded(AnnouncementFrame, 10)
-
-    local AnnouncementLabel = Instance.new("TextLabel")
-    AnnouncementLabel.Size = UDim2.new(1, 0, 1, 0)
-    AnnouncementLabel.BackgroundTransparency = 1
-    AnnouncementLabel.Text = message
-    AnnouncementLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    AnnouncementLabel.Font = Enum.Font.GothamBold
-    AnnouncementLabel.TextSize = 16
-    AnnouncementLabel.TextWrapped = true
-    AnnouncementLabel.Parent = AnnouncementFrame
-
-    -- Tween the frame to appear
-    local tweenIn = TweenService:Create(AnnouncementFrame, TweenInfo.new(0.5, Enum.EasingStyle.Sine), {Position = UDim2.new(0.5, 0, 0.2, 0), BackgroundTransparency = 0})
-    tweenIn:Play()
-    tweenIn.Completed:Wait()
-    wait(2)
-    -- Tween the frame to disappear
-    local tweenOut = TweenService:Create(AnnouncementFrame, TweenInfo.new(0.5, Enum.EasingStyle.Sine), {Position = UDim2.new(0.5, 0, -0.5, 0), BackgroundTransparency = 1})
-    tweenOut:Play()
-    tweenOut.Completed:Wait()
-    AnnouncementFrame:Destroy()
-
-    announcementInProgress = false
-end
-
--- Function to create a line label showing distance
-local function createLineLabel(line, distance)
-    local success, BillboardGui = pcall(function()
-        BillboardGui = Instance.new("BillboardGui")
-        BillboardGui.Size = UDim2.new(0, 100, 0, 50)
-        BillboardGui.StudsOffset = Vector3.new(0, 3, 0)
-        BillboardGui.Adornee = line
-        BillboardGui.AlwaysOnTop = true
-        BillboardGui.Parent = line
+    unitButton.MouseLeave:Connect(function()
+        game:GetService("TweenService"):Create(unitButton, 
+            TweenInfo.new(0.2), 
+            {BackgroundColor3 = Config.UI.ButtonColor}
+        ):Play()
     end)
-    if not success then
-        warn("Failed to create BillboardGui for line:", line.Name)
-        return
-    end
 
-    local successLabel, DistanceLabel = pcall(function()
-        DistanceLabel = Instance.new("TextLabel")
-        DistanceLabel.Size = UDim2.new(1, 0, 1, 0)
-        DistanceLabel.BackgroundTransparency = 1
-        DistanceLabel.Text = formatDistance(distance)
-        DistanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        DistanceLabel.Font = Enum.Font.Gotham
-        DistanceLabel.TextSize = 14
-        DistanceLabel.TextWrapped = true
-        DistanceLabel.Parent = BillboardGui
-    end)
-    if not successLabel then
-        warn("Failed to create DistanceLabel for line:", line.Name)
-    end
+    return {
+        GUI = screenGui,
+        MainFrame = mainFrame,
+        ToggleButton = toggleButton,
+        Measurements = measurements,
+        UnitButton = unitButton
+    }
 end
 
--- Function to draw a glowing line between two positions
-local function drawGlowingLine(startPos, endPos)
-    local success, line = pcall(function()
-        line = Instance.new("Part")
-        line.Size = Vector3.new(0.2, 0.2, (startPos - endPos).Magnitude)
-        line.CFrame = CFrame.new(startPos, endPos) * CFrame.new(0, 0, -line.Size.Z / 2)
-        line.Anchored = true
-        line.CanCollide = false
-        line.Color = Color3.fromRGB(255, 255, 0)  -- Yellow color
-        line.Material = Enum.Material.Neon  -- Make the line glow
-        line.Name = "GlowingLine"
-        line.Parent = Workspace
-    end)
-    if not success then
-        warn("Failed to create GlowingLine between positions:", startPos, endPos)
-        return
-    end
+-- Measurement Module
+local MeasurementModule = {}
 
-    -- Add line length label
-    local successLabel, distance = pcall(function()
-        distance = (startPos - endPos).Magnitude
-    end)
-    if successLabel then
-        createLineLabel(line, distance)
-    else
-        warn("Failed to calculate distance between positions:", startPos, endPos)
-    end
+function MeasurementModule.new(ui)
+    local measuring = false
+    local currentUnit = "Studs"
+    local currentOutline = nil
+    local selectedModel = nil
+    local labels = {}
+    local mouse = game:GetService("Players").LocalPlayer:GetMouse()
 
-    table.insert(lines, line)
-end
-
--- Function to add a checkpoint
-local function addCheckpoint()
-    local success, char = pcall(function()
-        return localPlayer.Character or localPlayer.CharacterAdded:Wait()
-    end)
-    if not success or not char or not char.PrimaryPart then
-        showAnnouncement("Character not loaded!")
-        return
-    end
-
-    local successCheckpoint, checkpoint = pcall(function()
-        checkpoint = Instance.new("Part")
-        checkpoint.Size = Vector3.new(1, 1, 1)
-        checkpoint.CFrame = char.PrimaryPart.CFrame
-        checkpoint.Anchored = true
-        checkpoint.CanCollide = false
-        checkpoint.Color = Color3.fromRGB(52, 152, 219)
-        checkpoint.Material = Enum.Material.Neon
-        checkpoint.Name = "Checkpoint"
-        checkpoint.Parent = Workspace
-    end)
-    if not successCheckpoint then
-        showAnnouncement("Failed to add checkpoint!")
-        return
-    end
-
-    table.insert(checkpoints, checkpoint)
-
-    -- Draw line from the last checkpoint to the new one
-    if #checkpoints > 1 then
-        local lastCheckpoint = checkpoints[#checkpoints - 1]
-        drawGlowingLine(lastCheckpoint.Position, checkpoint.Position)
-    end
-
-    showAnnouncement("Checkpoint added!")
-end
-
--- Function to remove all checkpoints and lines
-local function removeAllCheckpoints()
-    local success, err = pcall(function()
-        for _, checkpoint in pairs(checkpoints) do
-            if checkpoint and checkpoint.Parent then
-                checkpoint:Destroy()
-            end
+    local function clearLabels()
+        for _, label in pairs(labels) do
+            label:Destroy()
         end
-        checkpoints = {}
-    end)
-    if not success then
-        warn("Error removing checkpoints:", err)
+        labels = {}
     end
 
-    local successLines, errLines = pcall(function()
-        for _, line in pairs(lines) do
-            if line and line.Parent then
-                line:Destroy()
-            end
-        end
-        lines = {}
-    end)
-    if not successLines then
-        warn("Error removing lines:", errLines)
+    local function createLabel(text, position)
+        local label = Instance.new("BillboardGui")
+        label.Size = UDim2.new(0, 100, 0, 30)
+        label.StudsOffset = Vector3.new(0, 0.5, 0)
+        label.AlwaysOnTop = true
+
+        local background = Instance.new("Frame")
+        background.Size = UDim2.new(1, 0, 1, 0)
+        background.BackgroundColor3 = Config.Measurement.LabelBackgroundColor
+        background.BackgroundTransparency = 0.2
+        background.Parent = label
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 4)
+        corner.Parent = background
+
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = text
+        textLabel.TextColor3 = Config.Measurement.LabelTextColor
+        textLabel.Font = Config.UI.SecondaryFont
+        textLabel.TextSize = 14
+        textLabel.Parent = label
+
+        label.Parent = ui.GUI
+        label.StudsOffset = position
+        return label
     end
 
-    showAnnouncement("All checkpoints removed!")
-end
-
--- Function to calculate the actual map size based on all BasePart objects in Workspace
-local function calculateActualMapSize()
-    local minX, minY, minZ = math.huge, math.huge, math.huge
-    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
-
-    local success, err = pcall(function()
-        for _, part in ipairs(Workspace:GetDescendants()) do
-            if part:IsA("BasePart") then
-                local pos = part.Position
-                if pos.X < minX then minX = pos.X end
-                if pos.Y < minY then minY = pos.Y end
-                if pos.Z < minZ then minZ = pos.Z end
-
-                if pos.X > maxX then maxX = pos.X end
-                if pos.Y > maxY then maxY = pos.Y end
-                if pos.Z > maxZ then maxZ = pos.Z end
-            end
-        end
-    end)
-    if not success then
-        showAnnouncement("Error calculating map size: " .. tostring(err))
-        return
-    end
-
-    -- Check if any parts were found
-    if minX == math.huge then
-        showAnnouncement("No BasePart objects found in the Workspace!")
-        return
-    end
-
-    local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
-    local sizeText = string.format("Map Size:\nX: %s\nY: %s\nZ: %s",
-        formatDistance(size.X),
-        formatDistance(size.Y),
-        formatDistance(size.Z))
-    showAnnouncement(sizeText)
-end
-
--- Function to calculate the total distance between checkpoints
-local function calculateTotalDistance()
-    if #checkpoints < 2 then
-        showAnnouncement("Not enough checkpoints to calculate total distance!")
-        return
-    end
-
-    local totalDistance = 0
-    for i = 2, #checkpoints do
-        local dist = (checkpoints[i].Position - checkpoints[i - 1].Position).Magnitude
-        totalDistance = totalDistance + dist
-    end
-    showAnnouncement("Total map distance: " .. formatDistance(totalDistance))
-end
-
--- Function to find the nearest player
-local function findNearestPlayer()
-    if not character or not character.PrimaryPart then
-        showAnnouncement("Character not loaded!")
-        return
-    end
-
-    local nearestPlayer = nil
-    local shortestDistance = math.huge
-
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character.PrimaryPart then
-            local distance = (character.PrimaryPart.Position - player.Character.PrimaryPart.Position).Magnitude
-            if distance < shortestDistance then
-                shortestDistance = distance
-                nearestPlayer = player
-            end
-        end
-    end
-
-    if nearestPlayer then
-        showAnnouncement("Nearest Player: " .. nearestPlayer.Name .. " (" .. formatDistance(shortestDistance) .. ")")
-    else
-        showAnnouncement("No other players found!")
-    end
-end
-
--- Function to find the furthest player
-local function findFurthestPlayer()
-    if not character or not character.PrimaryPart then
-        showAnnouncement("Character not loaded!")
-        return
-    end
-
-    local furthestPlayer = nil
-    local longestDistance = 0
-
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character.PrimaryPart then
-            local distance = (character.PrimaryPart.Position - player.Character.PrimaryPart.Position).Magnitude
-            if distance > longestDistance then
-                longestDistance = distance
-                furthestPlayer = player
-            end
-        end
-    end
-
-    if furthestPlayer then
-        showAnnouncement("Furthest Player: " .. furthestPlayer.Name .. " (" .. formatDistance(longestDistance) .. ")")
-    else
-        showAnnouncement("No other players found!")
-    end
-end
-
--- Function to create a dynamic line between two entities with distance label
-local function createDynamicLineBetweenEntities(entityA, entityB, color)
-    -- Ensure both entities have a position
-    if not entityA or not entityB then return end
-
-    local posA, posB
-
-    if entityA:IsA("Player") then
-        if not entityA.Character or not entityA.Character:FindFirstChild("HumanoidRootPart") then return end
-        posA = entityA.Character.HumanoidRootPart.Position
-    elseif entityA:IsA("BasePart") then
-        posA = entityA.Position
-    else
-        return
-    end
-
-    if entityB:IsA("Player") then
-        if not entityB.Character or not entityB.Character:FindFirstChild("HumanoidRootPart") then return end
-        posB = entityB.Character.HumanoidRootPart.Position
-    elseif entityB:IsA("BasePart") then
-        posB = entityB.Position
-    else
-        return
-    end
-
-    local success, line = pcall(function()
-        line = Instance.new("Part")
-        line.Size = Vector3.new(0.2, 0.2, (posA - posB).Magnitude)
-        line.CFrame = CFrame.new(posA, posB) * CFrame.new(0, 0, -line.Size.Z / 2)
-        line.Anchored = true
-        line.CanCollide = false
-        line.Color = color or Color3.fromRGB(255, 0, 0)  -- Default red color
-        line.Material = Enum.Material.Neon  -- Make the line glow
-        line.Name = "EntityLine_" .. tostring(entityA) .. "_" .. tostring(entityB)
-        line.Parent = Workspace
-    end)
-    if not success then
-        warn("Failed to create line between entities:", entityA, entityB)
-        return nil
-    end
-
-    -- Add distance label
-    local successLabel, distance = pcall(function()
-        distance = (posA - posB).Magnitude
-    end)
-    if successLabel then
-        createLineLabel(line, distance)
-    else
-        warn("Failed to calculate distance between entities:", entityA, entityB)
-    end
-
-    -- Update the line every frame
-    local connection
-    connection = RunService.RenderStepped:Connect(function()
-        if not line or not line.Parent then
-            connection:Disconnect()
-            return
+    local function createOutline(modelOrPart)
+        if currentOutline then
+            currentOutline:Destroy()
+            clearLabels()
         end
 
-        -- Update positions
-        if entityA:IsA("Player") then
-            if not entityA.Character or not entityA.Character:FindFirstChild("HumanoidRootPart") then
-                line:Destroy()
-                connection:Disconnect()
-                return
-            end
-            posA = entityA.Character.HumanoidRootPart.Position
-        elseif entityA:IsA("BasePart") then
-            posA = entityA.Position
-        end
+        currentOutline = Instance.new("SelectionBox")
+        currentOutline.Color3 = Config.Measurement.OutlineColor
+        currentOutline.Transparency = Config.Measurement.OutlineTransparency
+        currentOutline.LineThickness = 0.05
+        currentOutline.Parent = ui.GUI
 
-        if entityB:IsA("Player") then
-            if not entityB.Character or not entityB.Character:FindFirstChild("HumanoidRootPart") then
-                line:Destroy()
-                connection:Disconnect()
-                return
-            end
-            posB = entityB.Character.HumanoidRootPart.Position
-        elseif entityB:IsA("BasePart") then
-            posB = entityB.Position
-        end
-
-        -- Update line size and position
-        local newDistance = (posA - posB).Magnitude
-        line.Size = Vector3.new(0.2, 0.2, newDistance)
-        line.CFrame = CFrame.new(posA, posB) * CFrame.new(0, 0, -line.Size.Z / 2)
-
-        -- Update distance label
-        local distanceLabel = line:FindFirstChildWhichIsA("BillboardGui") and line:FindFirstChildWhichIsA("BillboardGui"):FindFirstChildWhichIsA("TextLabel")
-        if distanceLabel then
-            distanceLabel.Text = formatDistance(newDistance)
-        end
-    end)
-
-    return line
-end
-
--- Function to handle tracking entities
-local function trackEntity(entity)
-    if not entity then return end
-
-    -- Check if entity is already tracked
-    for i, tracked in ipairs(trackedEntities) do
-        if tracked.Entity == entity then
-            -- Untrack the entity
-            if tracked.Tracker then
-                pcall(function()
-                    tracked.Tracker:Destroy()
-                end)
-            end
-            -- Remove lines associated with this entity
-            for _, line in ipairs(tracked.Lines) do
-                if line and line.Parent then
-                    pcall(function()
-                        line:Destroy()
-                    end)
-                end
-            end
-            table.remove(trackedEntities, i)
-            showAnnouncement("Stopped tracking " .. (entity:IsA("Player") and entity.Name or "object"))
-            return
-        end
-    end
-
-    -- Check if maximum tracked entities reached
-    if #trackedEntities >= MAX_TRACKED_ENTITIES then
-        showAnnouncement("Maximum of " .. MAX_TRACKED_ENTITIES .. " entities can be tracked at once!")
-        return
-    end
-
-    -- Start tracking the entity
-    local success, tracker = pcall(function()
-        tracker = Instance.new("BillboardGui")
-        tracker.Size = UDim2.new(0, 20, 0, 20)
-        tracker.StudsOffset = Vector3.new(0, 3, 0)
-        tracker.AlwaysOnTop = true
-        tracker.Name = "Tracker"
-
-        if entity:IsA("Player") then
-            local humanoidRootPart = entity.Character:FindFirstChild("HumanoidRootPart")
-            if humanoidRootPart then
-                tracker.Parent = humanoidRootPart
-            else
-                error("HumanoidRootPart not found for player " .. entity.Name)
-            end
-        elseif entity:IsA("BasePart") then
-            tracker.Parent = entity
+        if modelOrPart:IsA("Model") then
+            currentOutline.Adornee = modelOrPart.PrimaryPart or modelOrPart:GetChildren()[1]
         else
-            error("Entity is neither a Player nor a BasePart")
+            currentOutline.Adornee = modelOrPart
         end
-    end)
-    if not success then
-        showAnnouncement("Failed to create tracker for entity!")
-        warn("Error creating tracker:", tracker)
-        return
+
+        return currentOutline
     end
 
-    local successCircle, trackerCircle = pcall(function()
-        trackerCircle = Instance.new("Frame")
-        trackerCircle.Size = UDim2.new(1, 0, 1, 0)
-        trackerCircle.Position = UDim2.new(0, 0, 0, 0)
-        trackerCircle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        trackerCircle.BackgroundTransparency = 0.5
-        trackerCircle.BorderSizePixel = 0
-        trackerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-        trackerCircle.Parent = tracker
-    end)
-    if not successCircle then
-        showAnnouncement("Failed to create tracker circle!")
-        warn("Error creating tracker circle:", trackerCircle)
-    end
+    local function updateMeasurements(modelOrPart)
+        if not modelOrPart then return end
 
-    -- Initialize lines table for this entity
-    trackedEntities[#trackedEntities + 1] = {Entity = entity, Tracker = tracker, Lines = {}}
-
-    -- Create lines between this entity and all other tracked entities
-    for _, tracked in ipairs(trackedEntities) do
-        if tracked.Entity ~= entity then
-            local line = createDynamicLineBetweenEntities(entity, tracked.Entity, Color3.fromRGB(255, 0, 0))
-            if line then
-                table.insert(tracked.Lines, line)
-                tracked.Lines[#tracked.Lines + 1] = line
-            end
-        end
-    end
-
-    showAnnouncement("Started tracking " .. (entity:IsA("Player") and entity.Name or "object"))
-end
-
--- Function to handle entity clicks (supports both mouse and touch inputs)
-local function handleEntityClick(target)
-    if not target then return end
-
-    -- Determine if the target is a player or an object
-    local clickedEntity = nil
-
-    -- Check if target is part of a player's character
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            if target:IsDescendantOf(player.Character) then
-                clickedEntity = player
-                break
-            end
-        end
-    end
-
-    -- If not a player, check if it's a BasePart (object)
-    if not clickedEntity and target:IsA("BasePart") then
-        clickedEntity = target
-    end
-
-    -- Special case: allow tracking self by clicking on self's character
-    if not clickedEntity and target:IsDescendantOf(character) then
-        clickedEntity = localPlayer
-    end
-
-    if clickedEntity then
-        trackEntity(clickedEntity)
-    end
-end
-
--- Detect mouse clicks
-mouse.Button1Down:Connect(function()
-    local success, target = pcall(function()
-        return mouse.Target
-    end)
-    if success and target then
-        handleEntityClick(target)
-    else
-        warn("Failed to get mouse target.")
-    end
-end)
-
--- Detect touch inputs
-UserInputService.TouchTap:Connect(function(touches, gameProcessed)
-    if gameProcessed then return end
-    for _, touch in ipairs(touches) do
-        local success, target = pcall(function()
-            return touch.Target
-        end)
-        if success and target then
-            handleEntityClick(target)
+        local size
+        if modelOrPart:IsA("Model") then
+            size = modelOrPart:GetExtentsSize()
         else
-            warn("Failed to get touch target.")
+            size = modelOrPart.Size
         end
-    end
-end)
 
--- Function to handle players leaving to remove trackers
-local function onPlayerRemoving(player)
-    for i, tracked in ipairs(trackedEntities) do
-        if tracked.Entity == player then
-            if tracked.Tracker then
-                pcall(function()
-                    tracked.Tracker:Destroy()
-                end)
-            end
-            -- Remove all lines associated with this player
-            for _, line in ipairs(tracked.Lines) do
-                if line and line.Parent then
-                    pcall(function()
-                        line:Destroy()
-                    end)
-                end
-            end
-            table.remove(trackedEntities, i)
-            showAnnouncement("Stopped tracking " .. player.Name)
-            break
+        local multiplier = Config.Measurement.Units[currentUnit]
+        local position = modelOrPart:IsA("Model") and 
+            (modelOrPart.PrimaryPart or modelOrPart:GetChildren()[1]).Position or 
+            modelOrPart.Position
+
+        clearLabels()
+
+        -- Create dimension labels
+        local measurements = {
+            {value = size.X * multiplier, offset = Vector3.new(0, size.Y/2, 0), prefix = "W: "},
+            {value = size.Y * multiplier, offset = Vector3.new(size.X/2, 0, 0), prefix = "H: "},
+            {value = size.Z * multiplier, offset = Vector3.new(0, size.Y/2, size.Z/2), prefix = "D: "}
+        }
+
+        for _, m in ipairs(measurements) do
+            local label = createLabel(
+                string.format("%s%.1f %s", m.prefix, m.value, currentUnit),
+                m.offset
+            )
+            label.Adornee = currentOutline.Adornee
+            table.insert(labels, label)
         end
-    end
-end
 
--- Function to handle objects being removed
-local function onObjectRemoving(object)
-    for i, tracked in ipairs(trackedEntities) do
-        if tracked.Entity == object then
-            if tracked.Tracker then
-                pcall(function()
-                    tracked.Tracker:Destroy()
-                end)
+        -- Update UI panel
+        ui.Measurements.Text = string.format(
+            "Width: %.1f %s\nHeight: %.1f %s\nDepth: %.1f %s",
+            size.X * multiplier, currentUnit,
+            size.Y * multiplier, currentUnit,
+            size.Z * multiplier, currentUnit
+        )
+    end
+
+    -- Toggle measuring
+    ui.ToggleButton.MouseButton1Click:Connect(function()
+        measuring = not measuring
+        ui.ToggleButton.ImageColor3 = measuring and 
+            Color3.fromRGB(255, 255, 255) or 
+            Color3.fromRGB(150, 150, 150)
+
+        if not measuring then
+            if currentOutline then
+                currentOutline:Destroy()
+                clearLabels()
             end
-            -- Remove all lines associated with this object
-            for _, line in ipairs(tracked.Lines) do
-                if line and line.Parent then
-                    pcall(function()
-                        line:Destroy()
-                    end)
-                end
-            end
-            table.remove(trackedEntities, i)
-            showAnnouncement("Stopped tracking object")
-            break
+            ui.Measurements.Text = "Click an object to measure"
         end
-    end
-end
-
--- Connect player removing events
-Players.PlayerRemoving:Connect(onPlayerRemoving)
-
--- Connect object removing events
-Workspace.DescendantRemoving:Connect(function(descendant)
-    if descendant:IsA("BasePart") then
-        onObjectRemoving(descendant)
-    end
-end)
-
--- Function to handle player respawning to reattach trackers
-local function onCharacterAdded(player, newCharacter)
-    for _, tracked in ipairs(trackedEntities) do
-        if tracked.Entity == player then
-            if newCharacter and newCharacter:FindFirstChild("HumanoidRootPart") then
-                -- Reattach the tracker to the new character
-                pcall(function()
-                    tracked.Tracker.Parent = newCharacter:FindFirstChild("HumanoidRootPart")
-                end)
-
-                -- Recreate lines between this player and all other tracked entities
-                for _, otherTracked in ipairs(trackedEntities) do
-                    if otherTracked.Entity ~= player then
-                        local line = createDynamicLineBetweenEntities(player, otherTracked.Entity, Color3.fromRGB(255, 0, 0))
-                        if line then
-                            table.insert(tracked.Lines, line)
-                            otherTracked.Lines[#otherTracked.Lines + 1] = line
-                        end
-                    end
-                end
-            end
-            break
-        end
-    end
-end
-
--- Connect character added events
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function(char)
-        onCharacterAdded(player, char)
     end)
-end)
 
--- Button functionalities
-AddCheckpointButton.MouseButton1Click:Connect(addCheckpoint)
-RemoveCheckpointButton.MouseButton1Click:Connect(removeAllCheckpoints)
-ShowTotalDistanceButton.MouseButton1Click:Connect(calculateTotalDistance)
-ShowMapSizeButton.MouseButton1Click:Connect(calculateActualMapSize)
-NearestPlayerButton.MouseButton1Click:Connect(findNearestPlayer)
-FurthestPlayerButton.MouseButton1Click:Connect(findFurthestPlayer)
+    -- Unit cycling
+    ui.UnitButton.MouseButton1Click:Connect(function()
+        local units = {"Studs", "Meters", "Feet"}
+        local currentIndex = table.find(units, currentUnit)
+        currentUnit = units[currentIndex % #units + 1] or units[1]
+        ui.UnitButton.Text = currentUnit
+        if selectedModel then
+            updateMeasurements(selectedModel)
+        end
+    end)
 
--- Function to toggle GUI visibility with animation
-local guiVisible = false
-local function toggleGUI()
-    guiVisible = not guiVisible
-    if guiVisible then
-        MainFrame.Visible = true
-        -- Animate the frame sliding in
-        pcall(function()
-            MainFrame:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), "Out", "Sine", 0.5, true)
-        end)
-    else
-        -- Animate the frame sliding out
-        pcall(function()
-            MainFrame:TweenPosition(UDim2.new(0.5, 0, 1.5, 0), "In", "Sine", 0.5, true)
-        end)
-        wait(0.5)
-        pcall(function()
-            MainFrame.Visible = false
-        end)
-    end
+    -- Mouse input handling
+    mouse.Button1Down:Connect(function()
+        if measuring then
+            local target = mouse.Target
+            if target and not target:IsDescendantOf(ui.GUI) then
+                if target:IsA("BasePart") or target:IsA("Model") then
+                    createOutline(target)
+                    selectedModel = target
+                    updateMeasurements(selectedModel)
+                else
+                    ui.Measurements.Text = "Not a measurable object"
+                end
+            end
+        end
+    end)
+
+    -- Dragging functionality
+    local dragStart, startPos
+    local dragging = false
+
+    ui.MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragStart = input.Position
+            startPos = ui.MainFrame.Position
+            dragging = true
+        end
+    end)
+
+    ui.MainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            ui.MainFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    ui.MainFrame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    return {
+        Measure = createOutline,
+        UpdateMeasurements = updateMeasurements
+    }
 end
 
-ToggleButton.MouseButton1Click:Connect(toggleGUI)
-CloseButton.MouseButton1Click:Connect(toggleGUI)
+-- Initialize the measurement system
+local function initializeMeasurementSystem()
+    local ui = UIModule.new()
+    local measurement = MeasurementModule.new(ui)
+    return {
+        UI = ui,
+        Measurement = measurement
+    }
+end
 
--- Update the size dynamically when the screen size changes
-RunService.RenderStepped:Connect(function()
-    local success, newSize = pcall(getDynamicSize)
-    if success and newSize then
-        pcall(function()
-            MainFrame.Size = newSize
-        end)
-    else
-        warn("Failed to update GUI size.")
-    end
-end)
+-- Start the system
+return initializeMeasurementSystem()
