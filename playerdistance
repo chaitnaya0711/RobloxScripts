@@ -1,0 +1,350 @@
+-- Configuration for Player Distance Tracker
+local TrackerConfig = {
+    UI = {
+        MainFrame = {
+            Size = UDim2.new(0, 200, 0, 180),
+            Color = Color3.fromRGB(32, 34, 37),
+            CornerRadius = UDim.new(0, 10)
+        },
+        TextColor = Color3.fromRGB(255, 255, 255),
+        AccentColor = Color3.fromRGB(88, 101, 242),
+        ButtonColor = Color3.fromRGB(47, 49, 54),
+        HoverColor = Color3.fromRGB(57, 59, 64),
+        Font = Enum.Font.GothamBold,
+        SecondaryFont = Enum.Font.Gotham
+    },
+    Units = {
+        ["Studs"] = 1,
+        ["Meters"] = 3.571428571,
+        ["Feet"] = 11.7142857
+    },
+    UpdateRate = 0.1  -- How often to update the distance (in seconds)
+}
+
+local PlayerDistanceTracker = {}
+
+function PlayerDistanceTracker.new()
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    
+    -- State variables
+    local selectedPlayer1 = nil
+    local selectedPlayer2 = nil
+    local currentUnit = "Studs"
+    local isTracking = false
+    local connection = nil
+    
+    -- Create UI
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "PlayerDistanceTracker"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    -- Main container
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = TrackerConfig.UI.MainFrame.Size
+    mainFrame.Position = UDim2.new(0, 20, 0, 20)
+    mainFrame.BackgroundColor3 = TrackerConfig.UI.MainFrame.Color
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    -- Add corner rounding
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = TrackerConfig.UI.MainFrame.CornerRadius
+    corner.Parent = mainFrame
+    
+    -- Add shadow
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.BackgroundTransparency = 1
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    shadow.Size = UDim2.new(1, 40, 1, 40)
+    shadow.ZIndex = -1
+    shadow.Image = "rbxassetid://5554236805"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.5
+    shadow.Parent = mainFrame
+
+    -- Header
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, 35)
+    header.BackgroundColor3 = TrackerConfig.UI.AccentColor
+    header.Parent = mainFrame
+
+    local headerGradient = Instance.new("UIGradient")
+    headerGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, TrackerConfig.UI.AccentColor),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(
+            TrackerConfig.UI.AccentColor.R * 0.8,
+            TrackerConfig.UI.AccentColor.G * 0.8,
+            TrackerConfig.UI.AccentColor.B * 0.8
+        ))
+    })
+    headerGradient.Parent = header
+
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 10)
+    headerCorner.Parent = header
+
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -20, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "Player Distance Tracker"
+    title.TextColor3 = TrackerConfig.UI.TextColor
+    title.Font = TrackerConfig.UI.Font
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = header
+
+    -- Player Selection Dropdowns
+    local function createDropdown(name, yPos)
+        local dropdown = Instance.new("TextButton")
+        dropdown.Name = name
+        dropdown.Size = UDim2.new(1, -20, 0, 30)
+        dropdown.Position = UDim2.new(0, 10, 0, yPos)
+        dropdown.BackgroundColor3 = TrackerConfig.UI.ButtonColor
+        dropdown.Text = "Select " .. name
+        dropdown.TextColor3 = TrackerConfig.UI.TextColor
+        dropdown.Font = TrackerConfig.UI.SecondaryFont
+        dropdown.TextSize = 14
+        dropdown.Parent = mainFrame
+        
+        local dropdownCorner = Instance.new("UICorner")
+        dropdownCorner.CornerRadius = UDim.new(0, 6)
+        dropdownCorner.Parent = dropdown
+        
+        return dropdown
+    end
+
+    local player1Dropdown = createDropdown("Player 1", 45)
+    local player2Dropdown = createDropdown("Player 2", 85)
+
+    -- Distance Display
+    local distanceDisplay = Instance.new("TextLabel")
+    distanceDisplay.Name = "DistanceDisplay"
+    local player1Name = selectedPlayer1 and selectedPlayer1.Name or "Player 1"
+    local player2Name = selectedPlayer2 and selectedPlayer2.Name or "Player 2"
+    distanceDisplay.Text = "Select two players\nto begin tracking"
+    distanceDisplay.Size = UDim2.new(1, -20, 0, 40)
+    distanceDisplay.Position = UDim2.new(0, 10, 0, 125)
+    distanceDisplay.BackgroundTransparency = 1
+    distanceDisplay.TextColor3 = TrackerConfig.UI.TextColor
+    distanceDisplay.Font = TrackerConfig.UI.SecondaryFont
+    distanceDisplay.TextSize = 14
+    distanceDisplay.TextWrapped = true
+    distanceDisplay.Parent = mainFrame
+
+    -- Function to update player list
+    local function createPlayerList(dropdown, callback)
+        local listGui = Instance.new("Frame")
+        listGui.Size = UDim2.new(1, 0, 0, 150)
+        listGui.Position = UDim2.new(0, 0, 1, 5)
+        listGui.BackgroundColor3 = TrackerConfig.UI.MainFrame.Color
+        listGui.BorderSizePixel = 0
+        listGui.Visible = false
+        listGui.ZIndex = 10
+        listGui.Parent = dropdown
+
+        local listCorner = Instance.new("UICorner")
+        listCorner.CornerRadius = UDim.new(0, 6)
+        listCorner.Parent = listGui
+
+        local scrollFrame = Instance.new("ScrollingFrame")
+        scrollFrame.Size = UDim2.new(1, -10, 1, -10)
+        scrollFrame.Position = UDim2.new(0, 5, 0, 5)
+        scrollFrame.BackgroundTransparency = 1
+        scrollFrame.ScrollBarThickness = 4
+        scrollFrame.ZIndex = 10
+        scrollFrame.Parent = listGui
+
+        local UIListLayout = Instance.new("UIListLayout")
+        UIListLayout.SortOrder = Enum.SortOrder.Name
+        UIListLayout.Padding = UDim.new(0, 2)
+        UIListLayout.Parent = scrollFrame
+
+        local function updateList()
+            -- Clear existing buttons
+            for _, child in pairs(scrollFrame:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
+            end
+
+            -- Add player buttons
+            for _, player in pairs(Players:GetPlayers()) do
+                local button = Instance.new("TextButton")
+                button.Size = UDim2.new(1, -8, 0, 25)
+                button.BackgroundColor3 = TrackerConfig.UI.ButtonColor
+                button.Text = player.Name
+                button.TextColor3 = TrackerConfig.UI.TextColor
+                button.Font = TrackerConfig.UI.SecondaryFont
+                button.TextSize = 14
+                button.ZIndex = 10
+                button.Parent = scrollFrame
+
+                local buttonCorner = Instance.new("UICorner")
+                buttonCorner.CornerRadius = UDim.new(0, 4)
+                buttonCorner.Parent = button
+
+                button.MouseButton1Click:Connect(function()
+                    callback(player)
+                    listGui.Visible = false
+                    dropdown.Text = player.Name
+                end)
+            end
+
+            -- Update ScrollingFrame canvas size
+            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+        end
+
+        dropdown.MouseButton1Click:Connect(function()
+            listGui.Visible = not listGui.Visible
+            if listGui.Visible then
+                updateList()
+            end
+        end)
+
+        return updateList
+    end
+
+    -- Create player lists
+    local updatePlayer1List = createPlayerList(player1Dropdown, function(player)
+        selectedPlayer1 = player
+        updateTracking()
+    end)
+
+    local updatePlayer2List = createPlayerList(player2Dropdown, function(player)
+        selectedPlayer2 = player
+        updateTracking()
+    end)
+
+    -- Unit Toggle Button
+    local unitButton = Instance.new("TextButton")
+    unitButton.Name = "UnitButton"
+    unitButton.Size = UDim2.new(0, 60, 0, 24)
+    unitButton.Position = UDim2.new(1, -70, 1, -30)
+    unitButton.BackgroundColor3 = TrackerConfig.UI.ButtonColor
+    unitButton.Text = "Studs"
+    unitButton.TextColor3 = TrackerConfig.UI.TextColor
+    unitButton.Font = TrackerConfig.UI.SecondaryFont
+    unitButton.TextSize = 12
+    unitButton.Parent = mainFrame
+
+    local unitCorner = Instance.new("UICorner")
+    unitCorner.CornerRadius = UDim.new(0, 4)
+    unitCorner.Parent = unitButton
+
+    -- Function to update tracking
+    function updateTracking()
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+
+        if selectedPlayer1 and selectedPlayer2 then
+            isTracking = true
+            connection = RunService.Heartbeat:Connect(function()
+                if not selectedPlayer1.Character or not selectedPlayer2.Character then return end
+                
+                local char1 = selectedPlayer1.Character
+                local char2 = selectedPlayer2.Character
+                
+                local root1 = char1:FindFirstChild("HumanoidRootPart")
+                local root2 = char2:FindFirstChild("HumanoidRootPart")
+                
+                if root1 and root2 then
+                    local distance = (root1.Position - root2.Position).Magnitude
+                    local convertedDistance = distance * TrackerConfig.Units[currentUnit]
+                    distanceDisplay.Text = string.format(
+                        "%s to %s:\n%.1f %s",
+                        selectedPlayer1.Name,
+                        selectedPlayer2.Name,
+                        convertedDistance,
+                        currentUnit
+                    )
+                end
+            end)
+        else
+            isTracking = false
+            distanceDisplay.Text = "Select two players\nto begin tracking"
+        end
+    end
+
+    -- Unit cycling
+    unitButton.MouseButton1Click:Connect(function()
+        local units = {"Studs", "Meters", "Feet"}
+        local currentIndex = table.find(units, currentUnit)
+        currentUnit = units[currentIndex % #units + 1] or units[1]
+        unitButton.Text = currentUnit
+    end)
+
+    -- Update player lists when players join/leave
+    Players.PlayerAdded:Connect(function()
+        updatePlayer1List()
+        updatePlayer2List()
+    end)
+
+    Players.PlayerRemoving:Connect(function(player)
+        if player == selectedPlayer1 then
+            selectedPlayer1 = nil
+            player1Dropdown.Text = "Select Player 1"
+            updateTracking()
+        elseif player == selectedPlayer2 then
+            selectedPlayer2 = nil
+            player2Dropdown.Text = "Select Player 2"
+            updateTracking()
+        end
+        updatePlayer1List()
+        updatePlayer2List()
+    end)
+
+    -- Initialize player lists
+    updatePlayer1List()
+    updatePlayer2List()
+
+    -- Dragging functionality
+    local dragStart, startPos
+    local dragging = false
+
+    mainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            dragging = true
+        end
+    end)
+
+    mainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    mainFrame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    
+    return {
+        GUI = screenGui,
+        UpdateTracking = updateTracking
+    }
+end
+
+-- Initialize the tracker
+return PlayerDistanceTracker.new()
