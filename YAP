@@ -1,0 +1,212 @@
+local TextChatService = game:GetService("TextChatService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- Function to send a chat message
+local function sendMessage(message)
+    if TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService then
+        -- Legacy chat system
+        local ChatEvents = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
+        if ChatEvents then
+            local SayMessageRequest = ChatEvents:FindFirstChild("SayMessageRequest")
+            if SayMessageRequest then
+                SayMessageRequest:FireServer(message, "All")
+            end
+        end
+    else
+        -- New text chat system
+        for _, channel in next, TextChatService.TextChannels:GetChildren() do
+            if channel:FindFirstChild(player.Name) and channel.Name ~= 'RBXSystem' then
+                channel:SendAsync(message)
+                break
+            end
+        end
+    end
+end
+
+-- Message sequences to randomly choose from
+local messageSequences = {
+    {
+        "Nah I'd win",
+        "I will make it easier for you",
+        "Pathetically weak"
+    },
+    {
+        "You call that fighting?",
+        "Let me show you real power",
+        "Too slow, too weak"
+    },
+    {
+        "Is that all you've got?",
+        "This isn't even my final form",
+        "Watch and learn, amateur"
+    },
+    {
+        "You're not worth my time",
+        "But I'll humor you anyway",
+        "How disappointing"
+    },
+    {
+        "Just give up now",
+        "Save yourself the embarrassment",
+        "As expected, worthless"
+    },
+    {
+        "Your technique is flawed",
+        "Let me fix that for you",
+        "Much to learn, you have"
+    },
+    {
+        "You're in my territory now",
+        "Prepare to be humbled",
+        "Just as I predicted"
+    },
+    {
+        "Amateur hour is over",
+        "Time for a real challenge",
+        "Better luck next time"
+    },
+    {
+        "Your power level is laughable",
+        "Allow me to demonstrate",
+        "Know your place"
+    },
+    {
+        "You dare challenge me?",
+        "Witness true strength",
+        "Utterly defeated"
+    },
+    {
+        "Fighting you is like fighting a child",
+        "Let me teach you something",
+        "Class dismissed"
+    },
+    {
+        "You're centuries too early",
+        "Watch carefully now",
+        "Expected nothing less"
+    },
+    {
+        "Your moves are predictable",
+        "Time to end this charade",
+        "How unfortunate"
+    },
+    {
+        "You've made a grave mistake",
+        "Witness the difference in our power",
+        "Completely outmatched"
+    },
+    {
+        "Is this a joke?",
+        "Let me show you reality",
+        "Back to training you go"
+    },
+    {
+        "Your skills are lacking",
+        "Allow me to demonstrate proper technique",
+        "Study this defeat"
+    },
+    {
+        "You're not ready for this",
+        "But you'll learn the hard way",
+        "Lesson complete"
+    },
+    {
+        "This won't take long",
+        "Observe carefully",
+        "As I thought"
+    },
+    {
+        "Your form is sloppy",
+        "Let me fix those mistakes",
+        "Room for improvement"
+    },
+    {
+        "You're out of your league",
+        "Watch a master at work",
+        "Class is over"
+    },
+    {
+        "This should be interesting",
+        "Show me what you've got",
+        "Not impressed"
+    },
+    {
+        "Your confidence is misplaced",
+        "Time for a reality check",
+        "Reality hits hard"
+    },
+    {
+        "You've got potential",
+        "But you're still not ready",
+        "Maybe next time"
+    },
+    {
+        "Challenging me was brave",
+        "Foolish, but brave",
+        "Remember this defeat"
+    },
+    {
+        "Your strategy is flawed",
+        "Let me demonstrate why",
+        "Study and learn"
+    },
+    {
+        "You lack discipline",
+        "Watch how it's done",
+        "Much to learn"
+    },
+    {
+        "This will be quick",
+        "Don't blink now",
+        "Too easy"
+    },
+    {
+        "Your technique needs work",
+        "Allow me to demonstrate",
+        "Practice more"
+    },
+    {
+        "You're not ready",
+        "But experience is the best teacher",
+        "Lesson learned"
+    },
+    {
+        "This might get interesting",
+        "Show me your resolve",
+        "How disappointing"
+    }
+}
+
+-- Function to send random message sequence with delay
+local function sendRandomSequence()
+    local sequence = messageSequences[math.random(#messageSequences)]
+    for i, message in ipairs(sequence) do
+        task.delay(0.5 * i, function()
+            sendMessage(message)
+        end)
+    end
+end
+
+-- Function to check for animation
+local function setupAnimationDetection()
+    local function onCharacterAdded(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        
+        -- Monitor animation playing
+        humanoid.AnimationPlayed:Connect(function(animTrack)
+            if animTrack.Animation.AnimationId == "rbxassetid://11343250001" then
+                sendRandomSequence()
+            end
+        end)
+    end
+
+    -- Handle current and future characters
+    if player.Character then
+        onCharacterAdded(player.Character)
+    end
+    player.CharacterAdded:Connect(onCharacterAdded)
+end
+
+-- Start monitoring
+setupAnimationDetection()
