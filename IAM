@@ -1,0 +1,104 @@
+local TextChatService = game:GetService("TextChatService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- Function to send a chat message
+local function sendMessage(message)
+    if TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService then
+        -- Legacy chat system
+        local ChatEvents = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents")
+        if ChatEvents then
+            local SayMessageRequest = ChatEvents:FindFirstChild("SayMessageRequest")
+            if SayMessageRequest then
+                SayMessageRequest:FireServer(message, "All")
+            end
+        end
+    else
+        -- New text chat system
+        for _, channel in next, TextChatService.TextChannels:GetChildren() do
+            if channel:FindFirstChild(player.Name) and channel.Name ~= 'RBXSystem' then
+                channel:SendAsync(message)
+                break
+            end
+        end
+    end
+end
+
+-- Animation IDs and their corresponding messages
+local animationQuotes = {
+    ["12772543293"] = { -- Genos
+        "Activating incineration mode! Prepare to be obliterated!",
+        "No mercy for those who stand in my way!",
+        "I’ll burn everything down to protect what matters!",
+        "I am Genos, the Demon Cyborg, and I’ll show you my true power!"
+    },
+    ["12342141464"] = { -- Garou
+        "The world’s strongest? That title belongs to me now!",
+        "Hero? Villain? It doesn’t matter—I crush everyone!",
+        "Witness the birth of the ultimate monster!",
+        "I’ve trained endlessly for this moment! No one can defeat me!"
+    },
+    ["13499771836"] = { -- Sonic
+        "Speed unmatched. Skill unrivaled. Meet your end!",
+        "You’re not fast enough to keep up with me!",
+        "When I strike, it’s over before you know it!",
+        "No one challenges the Speed of Sound Sonic and survives!"
+    },
+    ["14733282425"] = { -- Metal Bat
+        "You’re about to see the true power of fighting spirit!",
+        "This bat is all I need to flatten you!",
+        "The harder you hit me, the stronger I get—bring it on!",
+        "I’m not stopping until you’re down for good!"
+    },
+    ["15391323441"] = { -- Atomic Samurai
+        "One strike, one victory. That’s the way of the blade.",
+        "You’ll never even see my Atomic Slash coming!",
+        "You’re unworthy of facing a master like me!",
+        "With this sword, I’ve already cut through your fate!"
+    },
+    ["16734584478"] = { -- Tatsumaki
+        "Don’t waste my time—I’ll crush you in an instant!",
+        "The gap between us is infinite. Know your place!",
+        "I don’t need to hold back against someone like you!",
+        "You’ll regret underestimating me—now disappear!"
+    },
+    ["18435535291"] = { -- Suiryu
+        "Martial arts isn’t just power—it’s an art form!",
+        "You’ll never match my technique or my strength!",
+        "I’ll finish this fight with a single move!",
+        "You’re fighting a champion—don’t expect mercy!"
+    }
+}
+
+-- Function to send a random message based on animation ID
+local function sendRandomMessage(animationId)
+    local messages = animationQuotes[animationId]
+    if messages then
+        local randomIndex = math.random(1, #messages)
+        sendMessage(messages[randomIndex])
+    end
+end
+
+-- Function to check for animation
+local function setupAnimationDetection()
+    local function onCharacterAdded(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        
+        -- Monitor animation playing
+        humanoid.AnimationPlayed:Connect(function(animTrack)
+            local animId = animTrack.Animation.AnimationId:match("%d+")
+            if animationQuotes[animId] then
+                sendRandomMessage(animId)
+            end
+        end)
+    end
+
+    -- Handle current and future characters
+    if player.Character then
+        onCharacterAdded(player.Character)
+    end
+    player.CharacterAdded:Connect(onCharacterAdded)
+end
+
+-- Start monitoring
+setupAnimationDetection()
