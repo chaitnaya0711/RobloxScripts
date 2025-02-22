@@ -1,0 +1,506 @@
+import random
+import requests
+import json
+from typing import Dict, List, Any
+from datetime import datetime, timedelta
+
+class DetailedLifePathGenerator:
+    def __init__(self):
+        # Basic demographic data
+        self.first_names = ["James", "John", "Emma", "Sarah", "Michael", "David", "Lisa", "Mary", "Robert", "William"]
+        self.last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
+        self.cities = ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose"]
+        
+        # Company name components
+        self.company_prefixes = ["Tech", "Global", "Next", "Future", "Smart", "Peak", "Elite", "Prime", "Core", "Sky"]
+        self.company_words = ["Solutions", "Systems", "Dynamics", "Innovations", "Ventures", "Industries", "Group", "Labs", "Network", "International"]
+        self.company_suffixes = ["Inc", "LLC", "Corp", "Limited", "Co", "Partners"]
+
+        # Industry-specific company names
+        self.industry_names = {
+            "tech": ["Quantum", "Cyber", "Digital", "Cloud", "AI", "Data", "Mobile", "Web", "Software", "Tech"],
+            "retail": ["Market", "Store", "Shop", "Retail", "Goods", "Trade", "Commerce", "Mart", "Emporium", "Boutique"],
+            "finance": ["Capital", "Finance", "Invest", "Asset", "Wealth", "Fund", "Trust", "Banking", "Securities", "Holdings"],
+            "consulting": ["Consult", "Advisory", "Strategy", "Insight", "Management", "Solutions", "Partners", "Associates", "Experts", "Advisors"]
+        }
+
+        # Business partner characteristics
+        self.partner_roles = {
+            "tech": ["CTO", "Lead Developer", "Technical Architect", "Innovation Director", "Product Manager"],
+            "business": ["CEO", "CFO", "COO", "Marketing Director", "Sales Director"],
+            "creative": ["Creative Director", "Design Lead", "Brand Manager", "UX Director", "Content Strategist"],
+            "operations": ["Operations Manager", "Project Lead", "Resource Director", "Strategy Manager", "Process Manager"]
+        }
+
+        self.partner_backgrounds = {
+            "education": ["MBA", "Computer Science degree", "Engineering background", "Business degree", "Self-taught"],
+            "experience": ["startup veteran", "corporate background", "industry expert", "serial entrepreneur", "innovator"],
+            "skills": ["technical expertise", "business acumen", "creative vision", "operational excellence", "strategic thinking"]
+        }
+
+        # Family backgrounds
+        self.family_backgrounds = {
+            "wealthy": {"traits": ["private school", "summer homes", "inheritance", "business ownership"]},
+            "middle_class": {"traits": ["suburban home", "family vacations", "college savings", "steady jobs"]},
+            "working_class": {"traits": ["hard work", "multiple jobs", "community support", "practical skills"]},
+            "poor": {"traits": ["financial struggles", "public assistance", "resilience", "resourcefulness"]}
+        }
+
+        # Detailed personality system (Now with a shit ton of traits)
+        self.personality_traits = {
+            "primary": ["introvert", "extrovert", "ambivert"],
+            "emotional": ["sensitive", "stoic", "expressive", "reserved", "temperamental", "calm", "volatile", "empathetic"],
+            "thinking": ["analytical", "creative", "practical", "philosophical", "abstract", "strategic", "intuitive"],
+            "work": ["ambitious", "relaxed", "perfectionist", "balanced", "innovative", "detail-oriented", "driven"],
+            "social": ["outgoing", "selective", "independent", "community-oriented", "charismatic", "private", "gregarious"],
+            "humor": ["sarcastic", "dry", "witty", "silly", "self-deprecating", "goofy", "absurd"],
+            "quirks": [
+                "collects odd trinkets", "has an uncanny obsession with coffee", "always misplaces their keys",
+                "talks to themselves", "believes in conspiracy theories", "prefers night over day", "has peculiar eating habits"
+            ],
+            "values": ["honesty", "integrity", "loyalty", "innovation", "compassion", "adventure", "independence", "tradition", "curiosity", "courage"],
+            "interests": ["reading", "traveling", "gaming", "cooking", "sports", "music", "art", "technology", "philosophy", "history"],
+            "motivations": ["financial freedom", "personal growth", "making a difference", "fame", "knowledge", "power", "stability", "recognition", "creativity", "love"],
+            "fears": ["failure", "rejection", "loss of freedom", "change", "the unknown", "commitment", "mediocrity", "being forgotten", "public speaking", "crowds"]
+        }
+
+        # Life events database
+        self.life_events = {
+            "childhood": [
+                "won academic award", "experienced bullying", "discovered special talent",
+                "faced family crisis", "moved to new city", "excelled in sports",
+                "developed chronic illness", "had a life-changing friendship"
+            ],
+            "teenage": [
+                "first love", "academic achievement", "family tragedy",
+                "discovered passion", "took on a leadership role", "rebellion phase",
+                "started a small business", "faced mental health challenges"
+            ],
+            "adult": [
+                "career breakthrough", "marriage", "divorce", "major achievement",
+                "world travel", "spiritual awakening", "personal loss",
+                "financial windfall", "health crisis", "starting a family"
+            ]
+        }
+
+        # Career paths
+        self.careers = [
+            {
+                "name": "entrepreneur",
+                "path": ["small business", "startup", "franchise", "tech company"],
+                "education_required": False,
+                "risk_level": "high",
+                "skills": ["leadership", "risk-taking", "innovation", "networking"],
+                "challenges": ["financial uncertainty", "work-life balance", "market competition"]
+            },
+            {
+                "name": "corporate executive",
+                "path": ["entry level", "middle management", "senior management", "C-suite"],
+                "education_required": True,
+                "risk_level": "medium",
+                "skills": ["strategy", "management", "communication", "finance"],
+                "challenges": ["high pressure", "political navigation", "long hours"]
+            }
+        ]
+
+        # Relationship data
+        self.relationship_types = ["married", "divorced", "single", "widowed", "long-term partnership"]
+        self.relationship_qualities = ["supportive", "challenging", "passionate", "practical", "complex"]
+
+        # Hidden knowledge areas
+        self.knowledge_areas = {
+            "entrepreneur": [
+                "business strategy", "market analysis", "leadership", "financial management",
+                "startup ecosystem", "venture capital", "business law", "marketing",
+                "team building", "crisis management", "negotiations", "industry trends"
+            ],
+            "corporate executive": [
+                "corporate governance", "strategic planning", "change management",
+                "organizational behavior", "risk management", "global markets",
+                "stakeholder relations", "corporate finance", "mergers and acquisitions"
+            ]
+        }
+
+    def generate_company_name(self, industry: str) -> Dict[str, Any]:
+        """Generate a company name and details based on industry"""
+        if industry in self.industry_names:
+            industry_specific = random.choice(self.industry_names[industry])
+            name_parts = [
+                industry_specific,
+                random.choice(self.company_words),
+                random.choice(self.company_suffixes)
+            ]
+        else:
+            name_parts = [
+                random.choice(self.company_prefixes),
+                random.choice(self.company_words),
+                random.choice(self.company_suffixes)
+            ]
+        
+        company_name = " ".join(name_parts)
+        founding_year = random.randint(1990, 2020)
+        
+        return {
+            "name": company_name,
+            "founded": founding_year,
+            "industry": industry,
+            "size": random.choice(["startup", "small business", "medium enterprise", "large corporation"]),
+            "status": random.choice(["growing", "stable", "market leader", "struggling", "pivoting"])
+        }
+
+    def generate_business_partner(self, company_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate a detailed business partner profile"""
+        role_category = random.choice(list(self.partner_roles.keys()))
+        
+        return {
+            "name": f"{random.choice(self.first_names)} {random.choice(self.last_names)}",
+            "role": random.choice(self.partner_roles[role_category]),
+            "background": {
+                "education": random.choice(self.partner_backgrounds["education"]),
+                "experience": random.choice(self.partner_backgrounds["experience"]),
+                "key_skill": random.choice(self.partner_backgrounds["skills"])
+            },
+            "relationship": random.choice(["close friend", "former colleague", "industry contact", "college friend", "family friend"]),
+            "joined": random.randint(company_info["founded"], company_info["founded"] + 5),
+            "equity_share": random.randint(5, 40),
+            "contribution": random.choice([
+                "technical expertise", "business connections", "financial investment",
+                "industry knowledge", "operational excellence", "creative vision"
+            ])
+        }
+
+    def generate_business_history(self, career_type: str) -> List[Dict[str, Any]]:
+        """Generate complete business history including companies and partners"""
+        business_history = []
+        current_year = 2024
+        
+        if career_type == "entrepreneur":
+            num_ventures = random.randint(1, 3)
+            for _ in range(num_ventures):
+                industry = random.choice(list(self.industry_names.keys()))
+                company = self.generate_company_name(industry)
+                
+                # Generate 1-3 business partners for each venture
+                num_partners = random.randint(1, 3)
+                partners = [self.generate_business_partner(company) for _ in range(num_partners)]
+                
+                # Generate company milestones
+                milestones = []
+                year = company["founded"]
+                while year < current_year:
+                    if random.random() < 0.3:  # 30% chance of milestone each year
+                        milestones.append({
+                            "year": year,
+                            "event": random.choice([
+                                "secured major funding", "launched flagship product",
+                                "expanded to new market", "achieved profitability",
+                                "won industry award", "acquired competitor",
+                                "pivoted business model", "went public"
+                            ]),
+                            "impact": random.choice([
+                                "transformed company trajectory", "doubled revenue",
+                                "established market presence", "enhanced reputation",
+                                "attracted key talent", "enabled expansion"
+                            ])
+                        })
+                    year += 1
+                
+                business_history.append({
+                    "company": company,
+                    "partners": partners,
+                    "milestones": milestones,
+                    "current_role": "Founder & " + random.choice(["CEO", "CTO", "COO", "President"]),
+                    "exit_status": random.choice([
+                        "still running", "acquired", "merged",
+                        "IPO", "closed", "transferred leadership"
+                    ]) if company["founded"] < 2020 else "still running"
+                })
+        
+        return business_history
+
+    def generate_siblings(self) -> List[Dict]:
+        """Generate siblings information"""
+        num_siblings = random.randint(0, 4)
+        siblings = []
+        for _ in range(num_siblings):
+            age_diff = random.randint(-10, 10)
+            siblings.append({
+                "name": f"{random.choice(self.first_names)} {random.choice(self.last_names)}",
+                "age_difference": age_diff,
+                "relationship_quality": random.choice(["close", "distant", "complex", "supportive"]),
+                "life_path": random.choice(["similar", "different", "opposite"]),
+                "current_status": random.choice(["successful", "struggling", "stable", "unknown"])
+            })
+        return siblings
+
+    def generate_relationship_history(self, birth_year: int) -> List[Dict]:
+        """Generate relationship history"""
+        history = []
+        current_age = 18  # Start at 18 years old
+        while current_age < 40:
+            if random.random() < 0.7:  # 70% chance of a relationship
+                duration = random.randint(1, 10)
+                history.append({
+                    "type": random.choice(["dating", "serious relationship", "engagement", "marriage"]),
+                    "duration_years": duration,
+                    "started_age": current_age,
+                    "quality": random.choice(self.relationship_qualities),
+                    "ended_reason": random.choice(["grew apart", "career paths", "incompatibility", "natural conclusion", "ongoing"])
+                })
+                current_age += duration + random.randint(0, 3)  # Add some gap between relationships
+            else:
+                current_age += random.randint(1, 5)
+        return history
+
+    def generate_hidden_knowledge(self, career: str) -> Dict[str, List[str]]:
+        """Generate detailed knowledge areas that influence the character"""
+        base_knowledge = self.knowledge_areas.get(career, [])
+        specialized_areas = random.sample(base_knowledge, min(5, len(base_knowledge)))
+        expertise_levels = random.choices(["basic", "intermediate", "expert", "master"], k=len(specialized_areas))
+        return dict(zip(specialized_areas, expertise_levels))
+
+    def generate_life_path(self) -> Dict[str, Any]:
+        """Generate a complete life path"""
+        birth_year = random.randint(1960, 2000)
+        background = random.choice(list(self.family_backgrounds.keys()))
+        chosen_career = random.choice(self.careers)
+        
+        person = {
+            "name": f"{random.choice(self.first_names)} {random.choice(self.last_names)}",
+            "birth_year": birth_year,
+            "birth_place": random.choice(self.cities),
+            "family_background": {
+                "type": background,
+                "traits": self.family_backgrounds[background]["traits"]
+            },
+            "siblings": self.generate_siblings(),
+            "personality": {
+                "primary": random.choice(self.personality_traits["primary"]),
+                "emotional": random.choice(self.personality_traits["emotional"]),
+                "thinking": random.choice(self.personality_traits["thinking"]),
+                "work": random.choice(self.personality_traits["work"]),
+                "social": random.choice(self.personality_traits["social"]),
+                "humor": random.choice(self.personality_traits["humor"]),
+                "quirks": random.choice(self.personality_traits["quirks"]),
+                "values": random.choice(self.personality_traits["values"]),
+                "interests": random.choice(self.personality_traits["interests"]),
+                "motivations": random.choice(self.personality_traits["motivations"]),
+                "fears": random.choice(self.personality_traits["fears"])
+            }
+        }
+        
+        # Generate business history if entrepreneur
+        if chosen_career["name"] == "entrepreneur":
+            business_history = self.generate_business_history("entrepreneur")
+            person["business_history"] = business_history
+            
+            # Add knowledge based on business experience
+            additional_knowledge = []
+            for business in business_history:
+                if business["company"]["industry"] == "tech":
+                    additional_knowledge.extend(["software development", "tech trends", "startup ecosystem"])
+                elif business["company"]["industry"] == "finance":
+                    additional_knowledge.extend(["financial markets", "investment strategies", "risk management"])
+        else:
+            person["business_history"] = []
+            additional_knowledge = []
+        
+        # Update career path with more details
+        career_path = {
+            "field": chosen_career["name"],
+            "progression": chosen_career["path"],
+            "current_level": random.randint(0, len(chosen_career["path"]) - 1),
+            "skills": random.sample(chosen_career["skills"], k=random.randint(2, len(chosen_career["skills"]))),
+            "challenges": random.sample(chosen_career["challenges"], k=random.randint(1, len(chosen_career["challenges"])))
+        }
+        
+        # Generate relationship history and current status
+        relationships = self.generate_relationship_history(birth_year)
+        current_status = random.choice(self.relationship_types)
+        
+        # Add all components to the person dictionary
+        person.update({
+            "career": career_path,
+            "relationships": {
+                "history": relationships,
+                "current_status": current_status
+            },
+            "life_events": {
+                "childhood": random.sample(self.life_events["childhood"], k=random.randint(2, 4)),
+                "teenage": random.sample(self.life_events["teenage"], k=random.randint(2, 4)),
+                "adult": random.sample(self.life_events["adult"], k=random.randint(3, 6))
+            }
+        })
+        
+        # Add business knowledge to hidden knowledge
+        base_knowledge = self.generate_hidden_knowledge(chosen_career["name"])
+        if additional_knowledge:
+            for knowledge in additional_knowledge:
+                if knowledge not in base_knowledge:
+                    base_knowledge[knowledge] = random.choice(["intermediate", "expert"])
+        person["hidden_knowledge"] = base_knowledge
+        
+        return person
+
+
+class PersonalityChat:
+    def __init__(self, life_path: Dict[str, Any], api_key: str):
+        self.life_path = life_path
+        self.api_key = api_key
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+        self.conversation_history = []
+        self.context = self._create_context()
+
+    def _create_context(self) -> str:
+        experiences = []
+        for phase, events in self.life_path['life_events'].items():
+            experiences.extend([f"During {phase}: {event}" for event in events])
+        
+        siblings_info = ""
+        if self.life_path['siblings']:
+            siblings = []
+            for sibling in self.life_path['siblings']:
+                relation = "older" if sibling['age_difference'] < 0 else "younger"
+                siblings.append(f"a {relation} sibling ({sibling['name']}) with a {sibling['relationship_quality']} relationship")
+            siblings_info = "You have " + ", ".join(siblings) + "."
+        
+        knowledge_areas = [f"{area} (level: {level})" for area, level in self.life_path['hidden_knowledge'].items()]
+        
+        context = f"""You are roleplaying as a specific person with the following background and characteristics. Always respond in character, incorporating relevant aspects of your background naturally into your responses.
+
+CORE IDENTITY:
+Name: {self.life_path['name']}
+Born: {self.life_path['birth_year']} in {self.life_path['birth_place']}
+
+PERSONALITY DETAILS:
+- Primary: {self.life_path['personality']['primary']}
+- Emotional: {self.life_path['personality']['emotional']}
+- Thinking: {self.life_path['personality']['thinking']}
+- Work: {self.life_path['personality']['work']}
+- Social: {self.life_path['personality']['social']}
+- Humor: {self.life_path['personality']['humor']}
+- Quirks: {self.life_path['personality']['quirks']}
+- Values: {self.life_path['personality']['values']}
+- Interests: {self.life_path['personality']['interests']}
+- Motivations: {self.life_path['personality']['motivations']}
+- Fears: {self.life_path['personality']['fears']}
+
+BACKGROUND:
+Family: {self.life_path['family_background']['type']} background
+Key family traits: {', '.join(self.life_path['family_background']['traits'])}
+{siblings_info}
+
+CAREER:
+Field: {self.life_path['career']['field']}
+Current level: {self.life_path['career']['progression'][self.life_path['career']['current_level']]}
+Key skills: {', '.join(self.life_path['career']['skills'])}
+Main challenges: {', '.join(self.life_path['career']['challenges'])}
+
+RELATIONSHIPS:
+Current status: {self.life_path['relationships']['current_status']}
+Notable past relationships: {', '.join([f"{r['type']} ({r['duration_years']} years, {r['quality']})" for r in self.life_path['relationships']['history']])}
+
+LIFE EXPERIENCES:
+{chr(10).join([f"- {exp}" for exp in experiences])}
+
+EXPERTISE AREAS:
+{chr(10).join([f"- {exp}" for exp in knowledge_areas])}
+
+RESPONSE GUIDELINES:
+1. Always respond in first person as this character.
+2. Draw from your life experiences when relevant.
+3. Let your personality traits influence your communication style.
+4. Use your expertise naturally when the topic relates to your knowledge areas.
+5. Keep responses consistent with your background and life history.
+"""
+        return context
+
+    def get_response(self, user_input: str) -> str:
+        try:
+            # Prepare the request
+            headers = {
+                "Content-Type": "application/json",
+                "x-goog-api-key": self.api_key
+            }
+
+            payload = {
+                "contents": [{
+                    "parts": [{
+                        "text": f"{self.context}\n\nUser: {user_input}\n\nRespond as {self.life_path['name']}:"
+                    }]
+                }],
+                "generationConfig": {
+                    "temperature": 0.9,
+                    "topK": 40,
+                    "topP": 0.95,
+                    "maxOutputTokens": 1024,
+                }
+            }
+
+            response = requests.post(
+                self.base_url,
+                headers=headers,
+                json=payload
+            )
+
+            if response.status_code == 200:
+                response_json = response.json()
+                return response_json['candidates'][0]['content']['parts'][0]['text']
+            elif response.status_code == 401:
+                print(f"Authentication Error (401): Invalid API key. Please check your API key.")
+                print(f"Full error: {response.text}")
+                return self._generate_fallback_response(user_input)
+            elif response.status_code == 400:
+                print(f"Bad Request Error (400): The request format was incorrect.")
+                print(f"Full error: {response.text}")
+                return self._generate_fallback_response(user_input)
+            else:
+                print(f"API Error ({response.status_code}): Unexpected error")
+                print(f"Full error: {response.text}")
+                return self._generate_fallback_response(user_input)
+
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return self._generate_fallback_response(user_input)
+
+    def _generate_fallback_response(self, user_input: str) -> str:
+        """Generate a fallback response when API calls fail"""
+        responses = [
+            f"As someone with a {self.life_path['personality']['thinking']} thinking style, I find that interesting.",
+            f"My experience in {self.life_path['career']['field']} gives me a unique perspective on that.",
+            f"Growing up in a {self.life_path['family_background']['type']} family shaped how I see this.",
+            f"Having gone through {random.choice(self.life_path['life_events']['adult'])}, I can totally relate."
+        ]
+        return random.choice(responses) + " Could you tell me more?"
+
+def main():
+    # Your Gemini API key
+    API_KEY = "YOUR_API_KEY_HERE"  # Replace with your actual API key
+
+    # Generate a detailed life path
+    generator = DetailedLifePathGenerator()
+    life_path = generator.generate_life_path()
+    
+    # Print basic information (keeping most details hidden)
+    print("\n=== Generated Life Path ===")
+    print(f"Name: {life_path['name']}")
+    print(f"Born: {life_path['birth_year']} in {life_path['birth_place']}")
+    print(f"Background: {life_path['family_background']['type']}")
+    print(f"Career: {life_path['career']['field']}")
+    print(f"Current Status: {life_path['relationships']['current_status']}")
+    print(f"Siblings: {len(life_path['siblings'])}")
+    
+    # Initialize chat with Gemini
+    chat = PersonalityChat(life_path, API_KEY)
+    print("\n=== Start Chat with Generated Personality ===")
+    print("Type 'exit' to end")
+    
+    while True:
+        user_input = input("\nYou: ").strip()
+        if user_input.lower() == 'exit':
+            break
+        response = chat.get_response(user_input)
+        print(f"\n{life_path['name']}: {response}")
+
+if __name__ == "__main__":
+    main()
